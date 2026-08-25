@@ -1,20 +1,40 @@
 # RKLightRAG Deployment
 
-基于 **官方 LightRAG** 的 RK3588 + RK1828 本地部署编排仓库。
+基于 [HKUDS/LightRAG](https://github.com/HKUDS/LightRAG) 的 RK3588 + RK1828 本地部署编排仓库。
 
-本仓库不保存模型权重、文档数据或运行时知识库。除四个独立的模型服务外，模型网关、入库路由、PDF/视觉编排和 LightRAG 扩展均由本仓库维护。
+LightRAG 负责 WebUI、文档入库、知识图谱、检索和数据存储；RK3588 负责服务编排，RK1828 提供本地模型推理。本仓库维护两者之间的 gateway、文档路由、PDF 视觉解析和 LightRAG Hook，不保存模型权重或知识库数据。
 
-官方 [HKUDS/LightRAG](https://github.com/HKUDS/LightRAG) 负责 WebUI、入库、建图、检索和数据存储；Model Gateway 在 RK3588 上将其本地 HTTP 请求转给 RK1828 模型服务。
+部署与配置请见 [安装文档](docs/install.md)。
 
-部署与配置见 [安装文档](docs/install.md)。
-
-## 系统架构
-
-### 文档入库
+## 一、总体架构
 
 ```mermaid
 flowchart LR
-    Upload([用户上传文件]) --> Hook[上传 Hook<br/>拦截 LightRAG 上传请求]
+    User([用户 / WebUI / API]) --> LR[官方 LightRAG<br/>RK3588]
+    LR -->|本地 HTTP| GW[Model Gateway<br/>RK3588]
+    GW --> Models[本地模型服务<br/>RK1828]
+    Models -->|结果| GW
+    GW -->|模型结果| LR
+    LR --> Answer([答案与引用])
+
+    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
+    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef gateway fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
+    classDef npu fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+
+    class User,Answer input
+    class LR lightrag
+    class GW gateway
+    class Models npu
+```
+
+LightRAG 只访问 RK3588 上的 Model Gateway；gateway 负责将请求转给 RK1828 的本地模型服务。知识库数据始终由 LightRAG 保存。
+
+## 二、文档入库
+
+```mermaid
+flowchart LR
+    Upload([用户上传文件]) --> Hook[上传 Hook]
 
     Hook -->|普通 Markdown| Router[文档路由]
     Router --> KG[KG 文档 P<br/>建图 + 文本检索]
@@ -43,62 +63,26 @@ flowchart LR
     class Insert lightrag
 ```
 
-上传 hook 只决定“上传后的文件如何进入官方入库管线”：它对普通 Markdown 执行选择性拆分；PDF 不拆分，而是根据部署时选择的 `cloud` 或 `rkvision` profile 调用对应解析器。无论走哪条分支，最后都是由官方 LightRAG 写入文本块、向量和知识图谱。
+上传 Hook 只决定文件进入 LightRAG 的方式：Markdown 会拆成建图与仅检索两类内容；PDF 根据部署配置选择 MinerU 云端或 RKVision 本地解析。各分支最终均进入官方 LightRAG 入库。
 
-### 查询与模型服务
+## 三、对官方 LightRAG 的扩展
 
-上图完成入库后，文本块、向量和知识图谱保存在 LightRAG 的 `WORKING_DIR`。下图描述用户提问时，运行在 RK3588 的同一个 LightRAG 如何通过 Model Gateway 使用 RK1828 模型服务；它不会再次经过上传 Hook 或 PDF 解析器。
-
-```mermaid
-flowchart LR
-    User([用户 / WebUI / API]) --> LR[官方 LightRAG<br/>RK3588]
-    LR -->|本地 HTTP| GW[Model Gateway<br/>RK3588]
-
-    GW --> Models[本地模型服务<br/>RK1828]
-    Models -->|结果| GW
-    GW -->|模型结果| LR
-    LR --> Answer([返回用户：答案与引用])
-
-    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
-    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
-    classDef gateway fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
-    classDef npu fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
-
-    class User,Answer input
-    class LR lightrag
-    class GW gateway
-    class Models npu
-```
-
-两张图对应同一套系统的入库与查询阶段：索引、图谱和缓存均由官方 LightRAG 保存；本仓库只提供 RK3588/RK1828 模型适配与少量 Hook。
-
-## 本地适配
-
-### LightRAG Hook
-
-Hook 仅针对固定上游提交安装；锚点不匹配时安装器会停止。
-
-| Hook | 修改位置 | 实际作用 |
+| 扩展 | 修改位置 | 作用 |
 | --- | --- | --- |
-| `selective_ingest_router.py` + upload hook | `document_routes.py` 的 Markdown 上传路径 | 普通 `.md` 拆成 `*.kg.[-P].md` 与 `*.text.[-P!].md`；前者参与实体关系抽取与图谱，后者只保留文本向量检索。显式带 `.[...]` 提示的文件仍走官方原路径。 |
-| document grouping hook | `document_routes.py` 的文档列表和删除接口 | 将同源的 P/P! 内部文档折叠为 WebUI 中的一条用户文档；删除这一条时同时删除两个内部文档。 |
-| query FIFO gate hook | `query_routes.py` 的普通与流式查询接口 | 在 LightRAG 进模型前设置全局单活跃查询队列，队满返回 `429`；避免多个 WebUI/API 请求同时写入同一 LLM daemon。另提供 `/query/status`。 |
-| queue progress hook | `query_routes.py` 的 FIFO 协调器 | 通过浏览器匿名 token 返回“当前请求运行中 / 排队中 / 前方位置”，不会向其他用户暴露问题内容。 |
-| WebUI status banner hook | LightRAG 打包 WebUI 的 `index.html` | 注入 `query-status-banner.js`，将队列状态显示在当前聊天消息的响应信息区域。 |
+| Markdown 上传路由 | `document_routes.py` | 将普通 `.md` 拆为 `*.kg.[-P].md` 与 `*.text.[-P!].md`。 |
+| 文档分组 | `document_routes.py` | 在 WebUI 中将同源 P/P! 文档显示为一条，并支持一起删除。 |
+| 查询 FIFO | `query_routes.py` | LLM 请求串行执行；队满时返回 `429`。 |
+| 排队状态 | `query_routes.py` + WebUI | 显示当前请求的运行或排队状态，不暴露其他用户的问题。 |
 
-这些 hook 不替换 LightRAG 的索引、检索、图数据库或 WebUI 主体，只在上传、文档显示、查询调度和状态呈现四处做适配。
+扩展安装器只支持 `deploy/lightrag-upstream.env` 中固定的上游提交；升级 LightRAG 前需重新验证 Hook。
 
-### 查询队列
+## 四、组件仓库
 
-LLM 请求按 FIFO 串行执行，避免多用户输出串台；WebUI 会显示排队状态。Embedding 与 Reranker 为独立常驻服务，不会随请求重复加载。
+| 组件 | 仓库 | 作用 |
+| --- | --- | --- |
+| PPOCRv6 RKNN | [RK3588-ppocrv6-service](https://github.com/Eliasyuan-bit/RK3588-ppocrv6-service) | 文字检测、方向分类、文字识别 |
+| DocLayout-YOLO RKNN | [RK3588-docling-service](https://github.com/Eliasyuan-bit/RK3588-docling-service) | 文档版面区域识别 |
+| Qwen3.5-9B 两卡服务 | [RK1828-qwen3.5-9b-2cards-service](https://github.com/Eliasyuan-bit/RK1828-qwen3.5-9b-2cards-service) | 本地 LLM 服务 |
+| Embedding / Reranker | [RK1828-qwen3-embedding-reranker-service](https://github.com/Eliasyuan-bit/RK1828-qwen3-embedding-reranker-service) | 本地向量与重排服务 |
 
-## 组件仓库
-
-| 组件 | 仓库 | 目录 | 作用 |
-| --- | --- | --- | --- |
-| PPOCRv6 RKNN | [RK3588-ppocrv6-service](https://github.com/Eliasyuan-bit/RK3588-ppocrv6-service) | `components/ppocrv6-rknn-service` | 文字检测、方向分类、文字识别 |
-| DocLayout-YOLO RKNN | [RK3588-docling-service](https://github.com/Eliasyuan-bit/RK3588-docling-service) | `components/doclayout-yolo-rknn-service` | 文档版面区域识别 |
-| Qwen3.5-9B 两卡服务 | [RK1828-qwen3.5-9b-2cards-service](https://github.com/Eliasyuan-bit/RK1828-qwen3.5-9b-2cards-service) | `components/RK1828-qwen3.5-9b-2cards-service` | Qwen3.5 常驻推理 |
-| 向量模型 | [RK1828-qwen3-embedding-reranker-service](https://github.com/Eliasyuan-bit/RK1828-qwen3-embedding-reranker-service) | `components/RK1828-qwen3-embedding-reranker-service` | Qwen3 Embedding / Reranker 常驻推理 |
-
-四个模型服务以 Git submodule 固定版本；其余编排代码位于本仓库 `core/`。
+四个模型服务以 Git submodule 固定版本；本仓库 `core/` 保存非模型的编排与适配代码。
