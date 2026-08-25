@@ -9,6 +9,20 @@
 
 模型权重、RKNN 文件、词表和知识库数据不由本仓库传输。
 
+## 构建 RK1828 模型服务
+
+在 x86 开发机执行，不在 RK3588 板端执行。先提供 RKNN3 model-zoo 与 aarch64 交叉编译器：
+
+```bash
+export RKNN3_MODEL_ZOO_ROOT=/path/to/rknn3-model-zoo
+export RK1828_C_COMPILER=/path/to/aarch64-linux-gnu-gcc
+export RK1828_CXX_COMPILER=/path/to/aarch64-linux-gnu-g++
+
+bash scripts/build-model-services.sh
+```
+
+该命令依次构建并打包 Qwen3.5-9B 两卡服务、Qwen3 Embedding/Reranker 服务；产物位于各组件的 `dist/` 目录，之后由各组件的 `scripts/deploy-adb.sh` 部署到板端。模型权重需预先放入各服务目录的 `models/` 下。
+
 ## 配置
 
 ```bash
