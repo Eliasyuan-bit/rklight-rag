@@ -70,7 +70,7 @@ MINERU_API_TOKEN=<你的 MinerU API Token>
 这些变量只在执行一键构建的 x86 Shell 中设置，不写入 `board.env`：
 
 ```bash
-export RKNN3_MODEL_ZOO_ROOT=/home/yn/sdk/182x/rknn/rknn3-model-zoo
+export RKNN3_MODEL_ZOO_ROOT=<path-to-rknn3-model-zoo>
 export GCC_COMPILER=<path-to-aarch64-gcc>
 ```
 

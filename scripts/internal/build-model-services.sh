@@ -26,7 +26,7 @@ fi
 
 if [[ "$BUILD_ENV_INVALID" == true ]]; then
   hint "Run the following on the x86 build host:"
-  hint "export RKNN3_MODEL_ZOO_ROOT=/home/yn/sdk/182x/rknn/rknn3-model-zoo"
+  hint "export RKNN3_MODEL_ZOO_ROOT=<path-to-rknn3-model-zoo>"
   hint "export GCC_COMPILER=<path-to-aarch64-gcc>"
   exit 2
 fi
