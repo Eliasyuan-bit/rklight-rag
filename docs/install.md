@@ -50,6 +50,16 @@ MINERU_API_TOKEN=<your_mineru_api_key>
 
 ## 一键部署
 
+完整部署（模型服务 + LightRAG WebUI）使用：
+
+```bash
+bash scripts/setup-board.sh --pdf-parser rkvision
+```
+
+`setup-board.sh` 在 x86 开发机执行；它先交叉编译、打包并 ADB 部署两个 RK1828 模型服务，再执行下方的 LightRAG 编排安装。若暂时使用 MinerU 云端 PDF 解析，将参数改为 `--pdf-parser cloud`。
+
+仅部署已准备好模型服务的 LightRAG 编排时，使用：
+
 ```bash
 # 默认：MinerU 官方云端解析 PDF
 ./scripts/install-all.sh --pdf-parser cloud
