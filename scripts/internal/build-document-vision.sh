@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$BASH_SOURCE")/../.." && pwd)"
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
+if [[ -z "${PDFIUM_ROOT:-}" ]]; then
+  bash "$ROOT/scripts/internal/prepare-pdfium.sh"
+  PDFIUM_ROOT="$ROOT/third_party/pdfium/linux-arm64"
+fi
+
 if [[ -z "${RK3588_SDK_ROOT:-}" && -n "${GCC_COMPILER:-}" ]]; then
   SDK_FROM_GCC="${GCC_COMPILER%%/prebuilts/gcc/*}"
   if [[ "$SDK_FROM_GCC" != "$GCC_COMPILER" && -d "$SDK_FROM_GCC/prebuilts" ]]; then
@@ -13,7 +18,7 @@ if [[ -z "${RK3588_SDK_ROOT:-}" && -n "${GCC_COMPILER:-}" ]]; then
 fi
 
 if ! require_variables RK3588_SDK_ROOT PDFIUM_ROOT; then
-  hint "RKVision requires an RK3588 SDK and aarch64 PDFium."
+  hint "RKVision requires an RK3588 SDK. PDFium is downloaded automatically when PDFIUM_ROOT is unset."
   [[ -n "${RK3588_SDK_ROOT:-}" ]] || hint "export RK3588_SDK_ROOT=<path-to-rk3588-sdk>"
   [[ -n "${PDFIUM_ROOT:-}" ]] || hint "export PDFIUM_ROOT=<path-to-aarch64-pdfium>"
   hint "PPOCR and DocLayout paths are resolved from components/ automatically."

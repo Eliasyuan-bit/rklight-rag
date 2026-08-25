@@ -88,12 +88,13 @@ bash scripts/setup-model-services.sh
 
 ```bash
 export RK3588_SDK_ROOT=/path/to/rk3588-sdk
-export PDFIUM_ROOT=/path/to/pdfium-aarch64
 ```
 
 PPOCRv6 与 DocLayout-YOLO 的主机路径由脚本自动使用 `components/ppocrv6-rknn-service`、`components/doclayout-yolo-rknn-service`，无需设置环境变量。
 
 若 `GCC_COMPILER` 位于标准 RK3588 SDK 的 `prebuilts/gcc/...` 路径下，脚本会自动推导 `RK3588_SDK_ROOT`；无需重复设置。工具链不在该目录结构中时，再显式设置 `RK3588_SDK_ROOT`。
+
+`PDFIUM_ROOT` 也无需设置：脚本会自动下载 Linux glibc ARM64 PDFium 包并缓存到 `third_party/pdfium/linux-arm64`。若需要使用内网镜像或已验证的特定版本，再手动设置 `PDFIUM_ROOT`，或通过 `PDFIUM_URL` 覆盖下载地址。
 
 ## 5. 板端模型文件布局
 

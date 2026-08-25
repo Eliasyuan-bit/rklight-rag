@@ -13,3 +13,6 @@ __pycache__/
 models/
 inputs/
 rag_storage/
+
+# Downloaded host-side third-party artifacts
+third_party/pdfium/

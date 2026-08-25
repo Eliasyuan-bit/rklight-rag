@@ -18,7 +18,7 @@ Complete x86-host deployment entry point:
 Prerequisites:
   - deploy/board.env and deploy/lightrag.env have been created;
   - RKNN3_MODEL_ZOO_ROOT and GCC_COMPILER are set;
-  - rkvision additionally needs RK3588_SDK_ROOT and PDFIUM_ROOT;
+  - rkvision additionally needs RK3588_SDK_ROOT; PDFium is downloaded automatically;
   - cloud additionally needs MINERU_API_TOKEN in deploy/lightrag.env.
 EOF
 }
