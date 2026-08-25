@@ -1,0 +1,28 @@
+flowchart LR
+    Upload([用户上传文件]) --> Hook[上传 Hook]
+
+    Hook -->|普通 Markdown| Router[文档路由]
+    Router --> KG[KG 文档 P<br/>建图 + 文本检索]
+    Router --> Text[文本文档 P!<br/>仅文本检索]
+
+    Hook -->|PDF，cloud 模式| MinerU[官方 MinerU 云端解析]
+    Hook -->|PDF，rkvision 模式| Vision[RK3588 本地 RKVision]
+
+    KG --> Insert[官方 LightRAG 入库]
+    Text --> Insert
+    MinerU --> Insert
+    Vision --> Insert
+
+    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
+    classDef hook fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
+    classDef route fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
+    classDef local fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef cloud fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:1.5px
+    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+
+    class Upload input
+    class Hook hook
+    class Router,KG,Text route
+    class Vision local
+    class MinerU cloud
+    class Insert lightrag

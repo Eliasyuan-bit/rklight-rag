@@ -1,0 +1,17 @@
+flowchart LR
+    User([用户 / WebUI / API]) --> LR[官方 LightRAG<br/>RK3588]
+    LR -->|本地 HTTP| GW[Model Gateway<br/>RK3588]
+    GW --> Models[本地模型服务<br/>RK1828]
+    Models -->|结果| GW
+    GW -->|模型结果| LR
+    LR --> Answer([答案与引用])
+
+    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
+    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef gateway fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
+    classDef npu fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+
+    class User,Answer input
+    class LR lightrag
+    class GW gateway
+    class Models npu
