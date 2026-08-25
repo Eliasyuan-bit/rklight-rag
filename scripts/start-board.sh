@@ -21,7 +21,7 @@ adb -s "$ADB_SERIAL" shell "
   nohup sh -c '. \"$GATEWAY_ROOT/deploy/rk3588.env\"; exec python3 \"$GATEWAY_ROOT/rk1828_model_gateway.py\"' \
     > '$BOARD_DATA_ROOT/logs/model-gateway.log' 2>&1 &
   echo \$! > '$BOARD_DATA_ROOT/model-gateway.pid'
-  nohup sh -c 'set -a; . \"$LIGHTRAG_ENV\"; . \"$PARSER_ENV\"; set +a; exec lightrag-server --host 0.0.0.0 --port \"$LIGHTRAG_PORT\"' \
+  nohup sh -c 'set -a; . \"$LIGHTRAG_ENV\"; . \"$PARSER_ENV\"; set +a; exec lightrag-server --host \"\${HOST:-0.0.0.0}\" --port \"\${PORT:-9621}\"' \
     > '$BOARD_DATA_ROOT/logs/lightrag.log' 2>&1 &
   echo \$! > '$BOARD_DATA_ROOT/lightrag.pid'
 "
