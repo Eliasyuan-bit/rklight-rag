@@ -2,10 +2,19 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-: "${RKNN3_MODEL_ZOO_ROOT:?Set RKNN3_MODEL_ZOO_ROOT to rknn3-model-zoo}"
-: "${RK1828_C_COMPILER:?Set RK1828_C_COMPILER to the aarch64 C compiler}"
-: "${RK1828_CXX_COMPILER:?Set RK1828_CXX_COMPILER to the aarch64 C++ compiler}"
+if ! require_variables RKNN3_MODEL_ZOO_ROOT RK1828_C_COMPILER RK1828_CXX_COMPILER; then
+  hint "在当前 x86 开发机执行："
+  hint "export RKNN3_MODEL_ZOO_ROOT=/home/yn/sdk/182x/rknn/rknn3-model-zoo"
+  hint "export RK1828_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc"
+  hint "export RK1828_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++"
+  exit 2
+fi
+
+[[ -d "$RKNN3_MODEL_ZOO_ROOT" ]] || { error "RKNN3_MODEL_ZOO_ROOT 不存在：$RKNN3_MODEL_ZOO_ROOT"; exit 2; }
+[[ -x "$RK1828_C_COMPILER" ]] || { error "RK1828_C_COMPILER 不可执行：$RK1828_C_COMPILER"; exit 2; }
+[[ -x "$RK1828_CXX_COMPILER" ]] || { error "RK1828_CXX_COMPILER 不可执行：$RK1828_CXX_COMPILER"; exit 2; }
 
 build_and_package() {
   local service_dir="$1"
