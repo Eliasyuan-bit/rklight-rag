@@ -28,9 +28,16 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-bash "$ROOT/scripts/check-config.sh"
+[[ -f "$ROOT/deploy/board.env" ]] || {
+  echo "Missing $ROOT/deploy/board.env; copy deploy/board.env.example first." >&2
+  exit 1
+}
 # shellcheck disable=SC1091
 source "$ROOT/deploy/board.env"
+
+[[ -n "${ADB_SERIAL:-}" ]] || { echo "ADB_SERIAL is not set in deploy/board.env." >&2; exit 1; }
+command -v adb >/dev/null || { echo "adb is required." >&2; exit 1; }
+adb -s "$ADB_SERIAL" get-state >/dev/null
 
 echo "==> Build and package model services"
 bash "$ROOT/scripts/build-model-services.sh"
