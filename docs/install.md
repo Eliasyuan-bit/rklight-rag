@@ -15,7 +15,7 @@
 
 ```bash
 export RKNN3_MODEL_ZOO_ROOT=/path/to/rknn3-model-zoo
-export GCC_COMPILER=aarch64-linux-gnu
+export GCC_COMPILER=<path-to-aarch64-gcc>
 ```
 
 模型权重需预先放入各服务目录的 `models/` 下。使用公开入口可一条命令完成构建、打包和 ADB 推送：

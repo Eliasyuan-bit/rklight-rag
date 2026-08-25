@@ -15,7 +15,7 @@ to the board selected in deploy/board.env. Model weight files are not copied.
 
 Required environment variables:
   RKNN3_MODEL_ZOO_ROOT  path to rknn3-model-zoo
-  GCC_COMPILER          aarch64 compiler prefix (default: aarch64-linux-gnu)
+  GCC_COMPILER          path to the aarch64 GCC executable
 
 Optional overrides:
   RK1828_C_COMPILER     full path to the aarch64 C compiler
