@@ -23,6 +23,14 @@ bash scripts/build-model-services.sh
 
 该命令依次构建并打包 Qwen3.5-9B 两卡服务、Qwen3 Embedding/Reranker 服务；产物位于各组件的 `dist/` 目录，之后由各组件的 `scripts/deploy-adb.sh` 部署到板端。模型权重需预先放入各服务目录的 `models/` 下。
 
+正常部署可直接使用一条命令完成构建、打包和 ADB 推送：
+
+```bash
+bash scripts/build-deploy-model-services.sh
+```
+
+加 `--verify` 会额外在板端初始化两卡 Qwen3.5-9B 并执行 daemon 冒烟验证。
+
 ## 配置
 
 ```bash
