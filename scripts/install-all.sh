@@ -59,18 +59,18 @@ run_step() {
 }
 
 cd "$ROOT_DIR"
-run_step "Initialise pinned repositories" ./scripts/bootstrap-repositories.sh
-run_step "Validate board configuration" ./scripts/check-config.sh
-run_step "Deploy RKLightRAG core" ./scripts/deploy-board.sh
+run_step "Initialise pinned repositories" bash ./scripts/bootstrap-repositories.sh
+run_step "Validate board configuration" bash ./scripts/check-config.sh
+run_step "Deploy RKLightRAG core" bash ./scripts/deploy-board.sh
 
 if "$WITH_DOCUMENT_VISION"; then
-  run_step "Build document-vision sidecar" ./scripts/build-document-vision.sh
-  run_step "Deploy document-vision sidecar" ./scripts/deploy-document-vision.sh
+  run_step "Build document-vision sidecar" bash ./scripts/build-document-vision.sh
+  run_step "Deploy document-vision sidecar" bash ./scripts/deploy-document-vision.sh
 fi
 
-run_step "Fetch pinned upstream LightRAG" ./scripts/install-lightrag-upstream.sh
-run_step "Install LightRAG extensions" ./scripts/install-lightrag-extensions.sh
-run_step "Start services" ./scripts/start-board.sh
-run_step "Verify deployment" ./scripts/verify-board.sh
+run_step "Fetch pinned upstream LightRAG" bash ./scripts/install-lightrag-upstream.sh
+run_step "Install LightRAG extensions" bash ./scripts/install-lightrag-extensions.sh
+run_step "Start services" bash ./scripts/start-board.sh
+run_step "Verify deployment" bash ./scripts/verify-board.sh
 
 printf '\nRKLightRAG deployment completed.\n'

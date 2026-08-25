@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)"
-"$ROOT/scripts/check-config.sh"
+bash "$ROOT/scripts/check-config.sh"
 source "$ROOT/deploy/board.env"
 
 adb -s "$ADB_SERIAL" shell "

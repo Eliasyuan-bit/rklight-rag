@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)"
-"$ROOT/scripts/check-config.sh"
+bash "$ROOT/scripts/check-config.sh"
 source "$ROOT/deploy/board.env"
 
 GATEWAY_ROOT="$BOARD_APP_ROOT/core/model-gateway"
