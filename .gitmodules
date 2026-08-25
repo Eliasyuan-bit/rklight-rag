@@ -1,0 +1,12 @@
+[submodule "components/ppocrv6-rknn-service"]
+	path = components/ppocrv6-rknn-service
+	url = git@github.com:Eliasyuan-bit/RK3588-ppocrv6-service.git
+[submodule "components/doclayout-yolo-rknn-service"]
+	path = components/doclayout-yolo-rknn-service
+	url = git@github.com:Eliasyuan-bit/RK3588-docling-service.git
+[submodule "components/RK1828-qwen3.5-9b-2cards-service"]
+	path = components/RK1828-qwen3.5-9b-2cards-service
+	url = git@github.com:Eliasyuan-bit/RK1828-qwen3.5-9b-2cards-service.git
+[submodule "components/RK1828-qwen3-embedding-reranker-service"]
+	path = components/RK1828-qwen3-embedding-reranker-service
+	url = git@github.com:Eliasyuan-bit/RK1828-qwen3-embedding-reranker-service.git

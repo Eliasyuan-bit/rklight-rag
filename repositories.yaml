@@ -1,0 +1,26 @@
+# 仅四个独立模型服务的仓库清单。
+# 模型服务子仓库；具体提交由 .gitmodules 锁定。
+repositories:
+  - name: ppocrv6-rknn-service
+    kind: submodule
+    path: components/ppocrv6-rknn-service
+    url: git@github.com:Eliasyuan-bit/RK3588-ppocrv6-service.git
+    responsibility: RK3588/RKNN PPOCRv6 服务
+
+  - name: doclayout-yolo-rknn-service
+    kind: submodule
+    path: components/doclayout-yolo-rknn-service
+    url: git@github.com:Eliasyuan-bit/RK3588-docling-service.git
+    responsibility: RK3588/RKNN 文档布局检测服务
+
+  - name: RK1828-qwen3.5-9b-2cards-service
+    kind: submodule
+    path: components/RK1828-qwen3.5-9b-2cards-service
+    url: git@github.com:Eliasyuan-bit/RK1828-qwen3.5-9b-2cards-service.git
+    responsibility: Qwen3.5 多卡常驻推理 daemon
+
+  - name: RK1828-qwen3-embedding-reranker-service
+    kind: submodule
+    path: components/RK1828-qwen3-embedding-reranker-service
+    url: git@github.com:Eliasyuan-bit/RK1828-qwen3-embedding-reranker-service.git
+    responsibility: Qwen3 Embedding/Reranker 常驻推理 daemon

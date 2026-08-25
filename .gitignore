@@ -1,0 +1,15 @@
+# Local deployment configuration and runtime state
+deploy/board.env
+deploy/lightrag.env
+runtime/
+logs/
+
+# Python / editor artifacts
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Models, documents and generated LightRAG data stay on the target board
+models/
+inputs/
+rag_storage/
