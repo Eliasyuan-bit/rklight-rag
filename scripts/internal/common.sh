@@ -15,11 +15,11 @@ else
   _C_GREEN=''
 fi
 
-error() { printf '%s[ERROR]%s %s\n' "$_C_RED" "$_C_RESET" "$*" >&2; }
-warning() { printf '%s[WARNING]%s %s\n' "$_C_YELLOW" "$_C_RESET" "$*" >&2; }
-hint() { printf '%s[ACTION]%s %s\n' "$_C_CYAN" "$_C_RESET" "$*" >&2; }
+error() { printf '%s[ERROR] %s%s\n' "$_C_RED" "$*" "$_C_RESET" >&2; }
+warning() { printf '%s[WARNING] %s%s\n' "$_C_YELLOW" "$*" "$_C_RESET" >&2; }
+hint() { printf '%s[ACTION] %s%s\n' "$_C_CYAN" "$*" "$_C_RESET" >&2; }
 step() { printf '%s==> %s%s\n' "$_C_YELLOW" "$*" "$_C_RESET"; }
-success() { printf '%s[OK]%s %s\n' "$_C_GREEN" "$_C_RESET" "$*"; }
+success() { printf '%s[OK] %s%s\n' "$_C_GREEN" "$*" "$_C_RESET"; }
 
 require_variables() {
   local missing=() name
