@@ -16,3 +16,4 @@ rag_storage/
 
 # Downloaded host-side third-party artifacts
 third_party/pdfium/
+core/document-vision/build-rk3588/
