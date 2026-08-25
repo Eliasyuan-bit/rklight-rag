@@ -89,11 +89,11 @@ bash scripts/setup-model-services.sh
 ```bash
 export RK3588_SDK_ROOT=/path/to/rk3588-sdk
 export PDFIUM_ROOT=/path/to/pdfium-aarch64
-export RK_VISION_PPOCR_SERVICE_ROOT=/path/to/RK3588-ppocrv6-service
-export RK_VISION_DOCLAYOUT_SERVICE_ROOT=/path/to/RK3588-docling-service
 ```
 
-这两个变量明确表示主机上的已构建服务目录；不要使用 `board.env` 的 `PPOCR_SERVICE_ROOT`、`LAYOUT_SERVICE_ROOT`，后两者是板端目录。
+PPOCRv6 与 DocLayout-YOLO 的主机路径由脚本自动使用 `components/ppocrv6-rknn-service`、`components/doclayout-yolo-rknn-service`，无需设置环境变量。
+
+若 `GCC_COMPILER` 位于标准 RK3588 SDK 的 `prebuilts/gcc/...` 路径下，脚本会自动推导 `RK3588_SDK_ROOT`；无需重复设置。工具链不在该目录结构中时，再显式设置 `RK3588_SDK_ROOT`。
 
 ## 5. 板端模型文件布局
 
