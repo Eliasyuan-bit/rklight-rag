@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/internal/common.sh"
 VERIFY=false
 
 usage() {
@@ -29,32 +30,33 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "$ROOT/deploy/board.env" ]] || {
-  echo "Missing $ROOT/deploy/board.env; copy deploy/board.env.example first." >&2
+  error "Missing configuration file: $ROOT/deploy/board.env"
+  hint "cp deploy/board.env.example deploy/board.env"
   exit 1
 }
 # shellcheck disable=SC1091
 source "$ROOT/deploy/board.env"
 
-[[ -n "${ADB_SERIAL:-}" ]] || { echo "ADB_SERIAL is not set in deploy/board.env." >&2; exit 1; }
-command -v adb >/dev/null || { echo "adb is required." >&2; exit 1; }
-adb -s "$ADB_SERIAL" get-state >/dev/null
+[[ -n "${ADB_SERIAL:-}" ]] || { error "ADB_SERIAL is not set in deploy/board.env."; exit 1; }
+command -v adb >/dev/null || { error "adb was not found in PATH."; exit 1; }
+adb -s "$ADB_SERIAL" get-state >/dev/null || { error "Cannot connect to ADB device: $ADB_SERIAL"; exit 1; }
 
-echo "==> Build and package model services"
+step "Build and package model services"
 bash "$ROOT/scripts/internal/build-model-services.sh"
 
-echo "==> Deploy Qwen3.5-9B service to $ADB_SERIAL"
+step "Deploy Qwen3.5-9B service to $ADB_SERIAL"
 ADB_SERIAL="$ADB_SERIAL" \
   bash "$ROOT/components/RK1828-qwen3.5-9b-2cards-service/scripts/deploy-adb.sh"
 
-echo "==> Deploy Embedding/Reranker service to $ADB_SERIAL"
+step "Deploy Embedding/Reranker service to $ADB_SERIAL"
 bash "$ROOT/components/RK1828-qwen3-embedding-reranker-service/scripts/deploy-adb.sh" "$ADB_SERIAL"
 
 if [[ "$VERIFY" == true ]]; then
-  echo "==> Verify vector service deployment"
+  step "Verify vector service deployment"
   bash "$ROOT/components/RK1828-qwen3-embedding-reranker-service/scripts/verify-adb.sh" "$ADB_SERIAL"
-  echo "==> Verify Qwen3.5-9B service (initializes the two-card model)"
+  step "Verify Qwen3.5-9B service (initializes the two-card model)"
   ADB_SERIAL="$ADB_SERIAL" \
     bash "$ROOT/components/RK1828-qwen3.5-9b-2cards-service/scripts/verify-adb.sh"
 fi
 
-echo "Model service build and deployment completed for $ADB_SERIAL."
+success "Model service build and deployment completed for $ADB_SERIAL."

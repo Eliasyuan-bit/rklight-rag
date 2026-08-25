@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/internal/common.sh"
 WITH_DOCUMENT_VISION=false
 CLI_PDF_PARSER_MODE=""
 
@@ -54,7 +55,7 @@ export RK_PDF_PARSER_MODE="$PDF_PARSER_MODE"
 run_step() {
   local label="$1"
   shift
-  printf '\n==> %s\n' "$label"
+  step "$label"
   "$@"
 }
 
@@ -73,4 +74,4 @@ run_step "Install LightRAG extensions" bash ./scripts/internal/install-lightrag-
 run_step "Start services" bash ./scripts/internal/start-board.sh
 run_step "Verify deployment" bash ./scripts/internal/verify-board.sh
 
-printf '\nRKLightRAG deployment completed.\n'
+success "RKLightRAG deployment completed."

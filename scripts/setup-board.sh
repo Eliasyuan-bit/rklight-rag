@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/internal/common.sh"
 PDF_PARSER_MODE="rkvision"
 VERIFY=false
 
@@ -37,11 +38,14 @@ done
 
 case "$PDF_PARSER_MODE" in cloud|rkvision) ;; *) echo "Invalid PDF parser mode: $PDF_PARSER_MODE" >&2; exit 2 ;; esac
 
-[[ -f "$ROOT/deploy/board.env" ]] || { echo "Missing deploy/board.env" >&2; exit 1; }
-[[ -f "$ROOT/deploy/lightrag.env" ]] || { echo "Missing deploy/lightrag.env" >&2; exit 1; }
+[[ -f "$ROOT/deploy/board.env" ]] || { error "Missing configuration file: deploy/board.env"; hint "cp deploy/board.env.example deploy/board.env"; exit 1; }
+[[ -f "$ROOT/deploy/lightrag.env" ]] || { error "Missing configuration file: deploy/lightrag.env"; hint "cp deploy/lightrag.env.example deploy/lightrag.env"; exit 1; }
 
 model_args=()
 [[ "$VERIFY" == true ]] && model_args+=(--verify)
 
+step "Set up RK1828 model services"
 bash "$ROOT/scripts/setup-model-services.sh" "${model_args[@]}"
+step "Deploy LightRAG and WebUI"
 bash "$ROOT/scripts/deploy-lightrag.sh" --pdf-parser "$PDF_PARSER_MODE"
+success "Full board setup completed."

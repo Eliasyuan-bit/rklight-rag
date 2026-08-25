@@ -5,8 +5,8 @@ ROOT="$(cd "$(dirname "$BASH_SOURCE")/../.." && pwd)"
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if ! require_variables RK3588_SDK_ROOT PDFIUM_ROOT RK_VISION_PPOCR_SERVICE_ROOT RK_VISION_DOCLAYOUT_SERVICE_ROOT; then
-  hint "RKVision 需要 RK3588 SDK、aarch64 PDFium 与主机侧 PPOCR/Layout 服务构建目录。"
-  hint "完整说明见 docs/environment.md 的“本地 RKVision PDF sidecar 的构建变量”。"
+  hint "RKVision requires RK3588 SDK, aarch64 PDFium, and host-side PPOCR/Layout build directories."
+  hint "See 'Local RKVision PDF sidecar build variables' in docs/environment.md."
   exit 2
 fi
 
