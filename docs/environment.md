@@ -71,8 +71,7 @@ MINERU_API_TOKEN=<你的 MinerU API Token>
 
 ```bash
 export RKNN3_MODEL_ZOO_ROOT=/home/yn/sdk/182x/rknn/rknn3-model-zoo
-export RK1828_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc
-export RK1828_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++
+export GCC_COMPILER=aarch64-linux-gnu
 ```
 
 若 `/usr/bin/aarch64-linux-gnu-gcc` 不存在，安装交叉工具链：
@@ -80,6 +79,8 @@ export RK1828_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++
 ```bash
 sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ```
+
+脚本会自动补全为 `aarch64-linux-gnu-gcc` 与 `aarch64-linux-gnu-g++`。只有工具链名称或位置特殊时，才需要显式设置 `RK1828_C_COMPILER`、`RK1828_CXX_COMPILER` 两个完整路径。
 
 模型服务的一键入口为：
 

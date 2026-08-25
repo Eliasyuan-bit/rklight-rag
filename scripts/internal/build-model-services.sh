@@ -4,11 +4,31 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-if ! require_variables RKNN3_MODEL_ZOO_ROOT RK1828_C_COMPILER RK1828_CXX_COMPILER; then
+TOOLCHAIN_PREFIX="${GCC_COMPILER:-aarch64-linux-gnu}"
+TOOLCHAIN_PREFIX="${TOOLCHAIN_PREFIX%-}"
+
+if [[ -z "${RK1828_C_COMPILER:-}" ]]; then
+  RK1828_C_COMPILER="$(command -v "${TOOLCHAIN_PREFIX}-gcc" 2>/dev/null || true)"
+fi
+if [[ -z "${RK1828_CXX_COMPILER:-}" ]]; then
+  RK1828_CXX_COMPILER="$(command -v "${TOOLCHAIN_PREFIX}-g++" 2>/dev/null || true)"
+fi
+
+BUILD_ENV_INVALID=false
+if [[ -z "${RKNN3_MODEL_ZOO_ROOT:-}" ]]; then
+  error "Missing required environment variable: RKNN3_MODEL_ZOO_ROOT"
+  BUILD_ENV_INVALID=true
+fi
+if [[ -z "$RK1828_C_COMPILER" || -z "$RK1828_CXX_COMPILER" ]]; then
+  error "Cannot find ${TOOLCHAIN_PREFIX}-gcc and/or ${TOOLCHAIN_PREFIX}-g++ in PATH."
+  BUILD_ENV_INVALID=true
+fi
+
+if [[ "$BUILD_ENV_INVALID" == true ]]; then
   hint "Run the following on the x86 build host:"
   hint "export RKNN3_MODEL_ZOO_ROOT=/home/yn/sdk/182x/rknn/rknn3-model-zoo"
-  hint "export RK1828_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc"
-  hint "export RK1828_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++"
+  hint "export GCC_COMPILER=aarch64-linux-gnu"
+  hint "sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu"
   exit 2
 fi
 

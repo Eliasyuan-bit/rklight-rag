@@ -17,7 +17,8 @@ Complete x86-host deployment entry point:
 
 Prerequisites:
   - deploy/board.env and deploy/lightrag.env have been created;
-  - RKNN3_MODEL_ZOO_ROOT, RK1828_C_COMPILER and RK1828_CXX_COMPILER are set;
+  - RKNN3_MODEL_ZOO_ROOT is set and the aarch64 compiler prefix is available
+    (GCC_COMPILER defaults to aarch64-linux-gnu);
   - rkvision additionally needs RK3588_SDK_ROOT, PDFIUM_ROOT,
     RK_VISION_PPOCR_SERVICE_ROOT and RK_VISION_DOCLAYOUT_SERVICE_ROOT;
   - cloud additionally needs MINERU_API_TOKEN in deploy/lightrag.env.
