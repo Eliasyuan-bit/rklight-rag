@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)"
-bash "$ROOT/scripts/check-config.sh"
+ROOT="$(cd "$(dirname "$BASH_SOURCE")/../.." && pwd)"
+bash "$ROOT/scripts/internal/check-config.sh"
 source "$ROOT/deploy/board.env"
 
 adb -s "$ADB_SERIAL" shell "

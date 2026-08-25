@@ -4,7 +4,9 @@
 
 LightRAG 负责 WebUI、文档入库、知识图谱、检索和数据存储；RK3588 负责服务编排，RK1828 提供本地模型推理。本仓库维护两者之间的 gateway、文档路由、PDF 视觉解析和 LightRAG Hook，不保存模型权重或知识库数据。
 
-部署与配置请见 [安装文档](docs/install.md)。
+部署步骤见 [安装文档](docs/install.md)，环境变量与配置文件说明见 [环境配置](docs/environment.md)。
+
+日常部署脚本说明见 [scripts/README.md](scripts/README.md)。
 
 ## 一、总体架构
 

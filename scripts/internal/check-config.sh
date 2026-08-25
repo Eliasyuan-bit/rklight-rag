@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 for file in "$ROOT/deploy/board.env" "$ROOT/deploy/lightrag.env"; do
   if [[ ! -f "$file" ]]; then

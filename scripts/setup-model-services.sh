@@ -6,7 +6,7 @@ VERIFY=false
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/build-deploy-model-services.sh [--verify]
+Usage: bash scripts/setup-model-services.sh [--verify]
 
 Builds and packages the Qwen3.5-9B and Qwen3 Embedding/Reranker services on
 the current x86 host, then deploys their binaries, libraries and JSON configs
@@ -40,7 +40,7 @@ command -v adb >/dev/null || { echo "adb is required." >&2; exit 1; }
 adb -s "$ADB_SERIAL" get-state >/dev/null
 
 echo "==> Build and package model services"
-bash "$ROOT/scripts/build-model-services.sh"
+bash "$ROOT/scripts/internal/build-model-services.sh"
 
 echo "==> Deploy Qwen3.5-9B service to $ADB_SERIAL"
 ADB_SERIAL="$ADB_SERIAL" \

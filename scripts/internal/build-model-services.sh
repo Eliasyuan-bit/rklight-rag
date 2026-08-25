@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 : "${RKNN3_MODEL_ZOO_ROOT:?Set RKNN3_MODEL_ZOO_ROOT to rknn3-model-zoo}"
 : "${RK1828_C_COMPILER:?Set RK1828_C_COMPILER to the aarch64 C compiler}"

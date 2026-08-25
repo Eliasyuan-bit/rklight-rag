@@ -18,7 +18,7 @@ Prerequisites:
   - deploy/board.env and deploy/lightrag.env have been created;
   - RKNN3_MODEL_ZOO_ROOT, RK1828_C_COMPILER and RK1828_CXX_COMPILER are set;
   - rkvision additionally needs RK3588_SDK_ROOT, PDFIUM_ROOT,
-    PPOCR_SERVICE_ROOT and DOCLAYOUT_SERVICE_ROOT on the build host;
+    RK_VISION_PPOCR_SERVICE_ROOT and RK_VISION_DOCLAYOUT_SERVICE_ROOT;
   - cloud additionally needs MINERU_API_TOKEN in deploy/lightrag.env.
 EOF
 }
@@ -43,5 +43,5 @@ case "$PDF_PARSER_MODE" in cloud|rkvision) ;; *) echo "Invalid PDF parser mode: 
 model_args=()
 [[ "$VERIFY" == true ]] && model_args+=(--verify)
 
-bash "$ROOT/scripts/build-deploy-model-services.sh" "${model_args[@]}"
-bash "$ROOT/scripts/install-all.sh" --pdf-parser "$PDF_PARSER_MODE"
+bash "$ROOT/scripts/setup-model-services.sh" "${model_args[@]}"
+bash "$ROOT/scripts/deploy-lightrag.sh" --pdf-parser "$PDF_PARSER_MODE"

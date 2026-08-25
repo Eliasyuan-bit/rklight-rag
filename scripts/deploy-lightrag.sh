@@ -9,7 +9,7 @@ CLI_PDF_PARSER_MODE=""
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/install-all.sh [--pdf-parser cloud|rkvision]
+Usage: bash scripts/deploy-lightrag.sh [--pdf-parser cloud|rkvision]
 
 Installs the RKLightRAG orchestration layer in this order:
   1. initialise pinned model-service submodules
@@ -24,7 +24,7 @@ Prerequisites:
   - four model services, their model assets, and their runtime libraries have
     already been built and deployed to the paths in deploy/board.env;
   - --pdf-parser rkvision needs the host-side toolchain and PDFium variables
-    required by scripts/build-document-vision.sh;
+    required by scripts/internal/build-document-vision.sh;
   - --pdf-parser cloud needs MINERU_API_TOKEN in deploy/lightrag.env.
 EOF
 }
@@ -59,18 +59,18 @@ run_step() {
 }
 
 cd "$ROOT_DIR"
-run_step "Initialise pinned repositories" bash ./scripts/bootstrap-repositories.sh
-run_step "Validate board configuration" bash ./scripts/check-config.sh
-run_step "Deploy RKLightRAG core" bash ./scripts/deploy-board.sh
+run_step "Initialise pinned repositories" bash ./scripts/internal/bootstrap-repositories.sh
+run_step "Validate board configuration" bash ./scripts/internal/check-config.sh
+run_step "Deploy RKLightRAG core" bash ./scripts/internal/deploy-board.sh
 
 if "$WITH_DOCUMENT_VISION"; then
-  run_step "Build document-vision sidecar" bash ./scripts/build-document-vision.sh
-  run_step "Deploy document-vision sidecar" bash ./scripts/deploy-document-vision.sh
+  run_step "Build document-vision sidecar" bash ./scripts/internal/build-document-vision.sh
+  run_step "Deploy document-vision sidecar" bash ./scripts/internal/deploy-document-vision.sh
 fi
 
-run_step "Fetch pinned upstream LightRAG" bash ./scripts/install-lightrag-upstream.sh
-run_step "Install LightRAG extensions" bash ./scripts/install-lightrag-extensions.sh
-run_step "Start services" bash ./scripts/start-board.sh
-run_step "Verify deployment" bash ./scripts/verify-board.sh
+run_step "Fetch pinned upstream LightRAG" bash ./scripts/internal/install-lightrag-upstream.sh
+run_step "Install LightRAG extensions" bash ./scripts/internal/install-lightrag-extensions.sh
+run_step "Start services" bash ./scripts/internal/start-board.sh
+run_step "Verify deployment" bash ./scripts/internal/verify-board.sh
 
 printf '\nRKLightRAG deployment completed.\n'

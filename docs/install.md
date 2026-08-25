@@ -17,16 +17,12 @@
 export RKNN3_MODEL_ZOO_ROOT=/path/to/rknn3-model-zoo
 export RK1828_C_COMPILER=/path/to/aarch64-linux-gnu-gcc
 export RK1828_CXX_COMPILER=/path/to/aarch64-linux-gnu-g++
-
-bash scripts/build-model-services.sh
 ```
 
-该命令依次构建并打包 Qwen3.5-9B 两卡服务、Qwen3 Embedding/Reranker 服务；产物位于各组件的 `dist/` 目录，之后由各组件的 `scripts/deploy-adb.sh` 部署到板端。模型权重需预先放入各服务目录的 `models/` 下。
-
-正常部署可直接使用一条命令完成构建、打包和 ADB 推送：
+模型权重需预先放入各服务目录的 `models/` 下。使用公开入口可一条命令完成构建、打包和 ADB 推送：
 
 ```bash
-bash scripts/build-deploy-model-services.sh
+bash scripts/setup-model-services.sh
 ```
 
 加 `--verify` 会额外在板端初始化两卡 Qwen3.5-9B 并执行 daemon 冒烟验证。
@@ -62,13 +58,13 @@ bash scripts/setup-board.sh --pdf-parser rkvision
 
 ```bash
 # 默认：MinerU 官方云端解析 PDF
-./scripts/install-all.sh --pdf-parser cloud
+bash scripts/deploy-lightrag.sh --pdf-parser cloud
 
 # 可选：RK3588 本地 RKVision 解析 PDF
-./scripts/install-all.sh --pdf-parser rkvision
+bash scripts/deploy-lightrag.sh --pdf-parser rkvision
 ```
 
-`install-all.sh` 依次初始化子模块、检查 ADB、同步编排代码、安装固定版本的官方 LightRAG、安装 Hook、启动服务并验证健康状态。`rkvision` 模式额外构建和部署 Document Vision。
+`deploy-lightrag.sh` 依次初始化子模块、检查 ADB、同步编排代码、安装固定版本的官方 LightRAG、安装 Hook、启动服务并验证健康状态。`rkvision` 模式额外构建和部署 Document Vision。
 
 ## PDF 解析模式
 
@@ -90,16 +86,12 @@ LIGHTRAG_UPSTREAM_REVISION=7ecd8a0512c1f5b221456b24de225a71e1e002d8
 
 安装脚本会克隆该提交并执行 `python3 -m pip install -e ".[api]"`。固定提交保证 Hook 的目标文件和锚点保持可验证；升级上游前应重新验证 Hook 安装、上传和查询。
 
-## 分步执行
+## 脚本入口
 
-```bash
-./scripts/bootstrap-repositories.sh
-./scripts/check-config.sh
-./scripts/deploy-board.sh
-./scripts/build-document-vision.sh       # 仅 rkvision
-./scripts/deploy-document-vision.sh      # 仅 rkvision
-./scripts/install-lightrag-upstream.sh
-./scripts/install-lightrag-extensions.sh
-./scripts/start-board.sh
-./scripts/verify-board.sh
-```
+| 命令 | 适用场景 |
+| --- | --- |
+| `bash scripts/setup-board.sh --pdf-parser rkvision` | 完整本地部署。 |
+| `bash scripts/setup-model-services.sh` | 只构建并部署 RK1828 模型服务。 |
+| `bash scripts/deploy-lightrag.sh --pdf-parser cloud` | 模型服务已准备好时，只安装 LightRAG WebUI 与编排。 |
+
+`scripts/internal/` 是上述入口调用的内部步骤，不作为日常操作入口。

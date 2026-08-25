@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-bash "$ROOT/scripts/check-config.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+bash "$ROOT/scripts/internal/check-config.sh"
 
 # shellcheck disable=SC1091
 source "$ROOT/deploy/board.env"
@@ -17,7 +17,7 @@ adb -s "$ADB_SERIAL" push "$ROOT/deploy/parser-profiles/$PARSER_MODE.env" "$BOAR
 adb -s "$ADB_SERIAL" push "$ROOT/core/model-gateway/." "$BOARD_APP_ROOT/core/model-gateway/" >/dev/null
 adb -s "$ADB_SERIAL" push "$ROOT/core/lightrag-extensions/." "$BOARD_APP_ROOT/core/lightrag-extensions/" >/dev/null
 adb -s "$ADB_SERIAL" push "$ROOT/core/ingest-router/." "$BOARD_APP_ROOT/core/ingest-router/" >/dev/null
-adb -s "$ADB_SERIAL" push "$ROOT/scripts/board-start.sh" "$BOARD_APP_ROOT/bin/start-rklight-rag" >/dev/null
+adb -s "$ADB_SERIAL" push "$ROOT/core/board-launcher/start-rklight-rag" "$BOARD_APP_ROOT/bin/start-rklight-rag" >/dev/null
 adb -s "$ADB_SERIAL" shell "chmod +x '$BOARD_APP_ROOT/bin/start-rklight-rag'"
 if [[ "$PARSER_MODE" == "rkvision" ]]; then
   adb -s "$ADB_SERIAL" push "$ROOT/core/rkvision-parser/." "$BOARD_APP_ROOT/core/rkvision-parser/" >/dev/null
@@ -25,9 +25,4 @@ fi
 
 echo "Core code and '$PARSER_MODE' PDF parser profile copied to $BOARD_APP_ROOT."
 echo "Build/deploy each model-service release artifact first."
-echo "For the optional PDF sidecar: ./scripts/build-document-vision.sh && ./scripts/deploy-document-vision.sh"
-echo "Then run:"
-echo "  ./scripts/install-lightrag-upstream.sh"
-echo "  ./scripts/install-lightrag-extensions.sh"
-echo "  ./scripts/start-board.sh"
-echo "  ./scripts/verify-board.sh"
+echo "Continue with: bash scripts/deploy-lightrag.sh --pdf-parser $PARSER_MODE"
