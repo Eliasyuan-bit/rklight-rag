@@ -6,6 +6,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if [[ -z "${RK1828_C_COMPILER:-}" && -n "${GCC_COMPILER:-}" ]]; then
   RK1828_C_COMPILER="$GCC_COMPILER"
+  if [[ ! -x "$RK1828_C_COMPILER" ]]; then
+    RK1828_C_COMPILER="${GCC_COMPILER%-}-gcc"
+  fi
 fi
 if [[ -z "${RK1828_C_COMPILER:-}" ]]; then
   RK1828_C_COMPILER="$(command -v aarch64-linux-gnu-gcc 2>/dev/null || true)"
@@ -27,12 +30,12 @@ fi
 if [[ "$BUILD_ENV_INVALID" == true ]]; then
   hint "Run the following on the x86 build host:"
   hint "export RKNN3_MODEL_ZOO_ROOT=<path-to-rknn3-model-zoo>"
-  hint "export GCC_COMPILER=<path-to-aarch64-gcc>"
+  hint "export GCC_COMPILER=<path-to-aarch64-gcc-or-toolchain-prefix>"
   exit 2
 fi
 
 [[ -d "$RKNN3_MODEL_ZOO_ROOT" ]] || { error "RKNN3_MODEL_ZOO_ROOT does not exist: $RKNN3_MODEL_ZOO_ROOT"; exit 2; }
-[[ -x "$RK1828_C_COMPILER" ]] || { error "RK1828_C_COMPILER is not executable: $RK1828_C_COMPILER"; exit 2; }
+[[ -x "$RK1828_C_COMPILER" ]] || { error "RK1828_C_COMPILER is not executable: $RK1828_C_COMPILER"; hint "GCC_COMPILER may be either the gcc executable or its toolchain prefix."; exit 2; }
 [[ -x "$RK1828_CXX_COMPILER" ]] || { error "RK1828_CXX_COMPILER is not executable: $RK1828_CXX_COMPILER"; exit 2; }
 
 build_and_package() {

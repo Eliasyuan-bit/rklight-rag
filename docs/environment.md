@@ -71,10 +71,10 @@ MINERU_API_TOKEN=<你的 MinerU API Token>
 
 ```bash
 export RKNN3_MODEL_ZOO_ROOT=<path-to-rknn3-model-zoo>
-export GCC_COMPILER=<path-to-aarch64-gcc>
+export GCC_COMPILER=<path-to-aarch64-gcc-or-toolchain-prefix>
 ```
 
-脚本从 `GCC_COMPILER` 自动推导同目录的 `g++`。只有 GCC 与 G++ 不遵循标准同名规则时，才需要显式设置 `RK1828_C_COMPILER`、`RK1828_CXX_COMPILER` 两个完整路径。
+`GCC_COMPILER` 可填写完整 `gcc` 可执行文件，或不带 `-gcc` 的工具链前缀；脚本会自动补全并推导对应的 `g++`。只有 GCC 与 G++ 不遵循标准同名规则时，才需要显式设置 `RK1828_C_COMPILER`、`RK1828_CXX_COMPILER` 两个完整路径。
 
 模型服务的一键入口为：
 
