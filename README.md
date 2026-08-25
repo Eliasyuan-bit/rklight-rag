@@ -10,60 +10,13 @@ LightRAG 负责 WebUI、文档入库、知识图谱、检索和数据存储；RK
 
 ## 一、总体架构
 
-```mermaid
-flowchart LR
-    User([用户 / WebUI / API]) --> LR[官方 LightRAG<br/>RK3588]
-    LR -->|本地 HTTP| GW[Model Gateway<br/>RK3588]
-    GW --> Models[本地模型服务<br/>RK1828]
-    Models -->|结果| GW
-    GW -->|模型结果| LR
-    LR --> Answer([答案与引用])
-
-    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
-    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
-    classDef gateway fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
-    classDef npu fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
-
-    class User,Answer input
-    class LR lightrag
-    class GW gateway
-    class Models npu
-```
+![总体架构](docs/assert/architecture.png)
 
 LightRAG 只访问 RK3588 上的 Model Gateway；gateway 负责将请求转给 RK1828 的本地模型服务。知识库数据始终由 LightRAG 保存。
 
 ## 二、文档入库
 
-```mermaid
-flowchart LR
-    Upload([用户上传文件]) --> Hook[上传 Hook]
-
-    Hook -->|普通 Markdown| Router[文档路由]
-    Router --> KG[KG 文档 P<br/>建图 + 文本检索]
-    Router --> Text[文本文档 P!<br/>仅文本检索]
-
-    Hook -->|PDF，cloud 模式| MinerU[官方 MinerU 云端解析]
-    Hook -->|PDF，rkvision 模式| Vision[RK3588 本地 RKVision]
-
-    KG --> Insert[官方 LightRAG 入库]
-    Text --> Insert
-    MinerU --> Insert
-    Vision --> Insert
-
-    classDef input fill:#F1F5F9,stroke:#64748B,color:#0F172A,stroke-width:1.5px
-    classDef hook fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
-    classDef route fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px
-    classDef local fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
-    classDef cloud fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:1.5px
-    classDef lightrag fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
-
-    class Upload input
-    class Hook hook
-    class Router,KG,Text route
-    class Vision local
-    class MinerU cloud
-    class Insert lightrag
-```
+![文档入库流程](docs/assert/pipeline.png)
 
 上传 Hook 只决定文件进入 LightRAG 的方式：Markdown 会拆成建图与仅检索两类内容；PDF 根据部署配置选择 MinerU 云端或 RKVision 本地解析。各分支最终均进入官方 LightRAG 入库。
 
