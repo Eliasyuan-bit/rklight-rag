@@ -1,12 +1,13 @@
 # 脚本目录
 
-日常只使用以下三个入口：
+日常只使用以下四个入口：
 
 | 脚本 | 作用 |
 | --- | --- |
 | `setup-board.sh` | 从交叉编译到板端 WebUI 启动的完整部署入口。 |
 | `setup-model-services.sh` | 只构建、打包并部署 RK1828 的 LLM、Embedding 和 Reranker 服务。 |
 | `deploy-lightrag.sh` | 模型服务已准备好时，仅部署官方 LightRAG、Hook、PDF 解析器与 WebUI。 |
+| `start-board.sh` | 板端已部署完成后，只启动或复用常驻服务并验证状态。 |
 
 三个入口都应通过 `bash scripts/<name>.sh` 在 x86 开发机执行。
 

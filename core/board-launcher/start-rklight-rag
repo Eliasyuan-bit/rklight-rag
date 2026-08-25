@@ -6,6 +6,7 @@ DATA_ROOT="${RK_LIGHTRAG_DATA_ROOT:-/userdata/lightrag-data}"
 GATEWAY_ROOT="$APP_ROOT/core/model-gateway"
 LIGHTRAG_ENV="$APP_ROOT/config/lightrag.env"
 PARSER_ENV="$APP_ROOT/config/pdf-parser.env"
+LIGHTRAG_SERVER="$APP_ROOT/venv/bin/lightrag-server"
 
 start_service() {
   local name="$1"
@@ -25,9 +26,12 @@ start_service() {
 
 [[ -f "$LIGHTRAG_ENV" ]] || { echo "Missing $LIGHTRAG_ENV" >&2; exit 1; }
 [[ -f "$PARSER_ENV" ]] || { echo "Missing $PARSER_ENV" >&2; exit 1; }
-command -v lightrag-server >/dev/null || { echo "lightrag-server is not installed" >&2; exit 1; }
+[[ -x "$LIGHTRAG_SERVER" ]] || { echo "Missing $LIGHTRAG_SERVER; run deployment first" >&2; exit 1; }
 
 mkdir -p "$DATA_ROOT/logs"
+# Upstream LightRAG requires .env in its current working directory.  Keep the
+# canonical deployment configuration under config/ and expose it in-place.
+ln -sfn "config/lightrag.env" "$APP_ROOT/.env"
 
 start_service \
   "model gateway" \
@@ -39,6 +43,6 @@ start_service \
   "LightRAG" \
   "$DATA_ROOT/lightrag.pid" \
   "$DATA_ROOT/logs/lightrag.log" \
-  "set -a; . '$LIGHTRAG_ENV'; . '$PARSER_ENV'; set +a; exec lightrag-server --host \"\${HOST:-0.0.0.0}\" --port \"\${PORT:-9621}\""
+  "cd '$APP_ROOT'; set -a; . '$LIGHTRAG_ENV'; . '$PARSER_ENV'; set +a; exec '$LIGHTRAG_SERVER' --host \"\${HOST:-0.0.0.0}\" --port \"\${PORT:-9621}\""
 
 echo "WebUI: http://<board-ip>:9621"

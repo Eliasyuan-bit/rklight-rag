@@ -28,7 +28,12 @@ REPLACEMENT = '''            # RK3588_SELECTIVE_MARKDOWN_UPLOAD_HOOK
             # enqueueing.  Explicit parser hints remain an expert override.
             index_paths = [file_path]
             if safe_filename.lower().endswith(".md") and ".[" not in safe_filename:
-                from selective_ingest_router import route_markdown_file
+                # document_routes is part of lightrag.api.routers, so the
+                # router must be imported as its sibling.  An absolute import
+                # only happens to work when the routers directory is placed
+                # on PYTHONPATH, which is not true for an editable upstream
+                # installation.
+                from .selective_ingest_router import route_markdown_file
 
                 # Keep audit manifests outside INPUT_DIR: the latter is owned
                 # by LightRAG's scanner and must contain indexable sources
@@ -82,9 +87,21 @@ INDEX_REPLACEMENT = '''                    # RK3588_SELECTIVE_MARKDOWN_UPLOAD_IN
 
 def install(target: Path) -> None:
     source = target.read_text(encoding="utf-8")
+
+    # Upgrade hooks installed by earlier revisions, which used an absolute
+    # import and consequently failed at runtime in the app virtualenv.
+    original_source = source
+    source = source.replace(
+        "from selective_ingest_router import route_markdown_file",
+        "from .selective_ingest_router import route_markdown_file",
+    )
     has_route_hook = MARKER in source
     has_index_hook = INDEX_MARKER in source
     if has_route_hook and has_index_hook:
+        if source != original_source:
+            target.write_text(source, encoding="utf-8")
+            print(f"updated: {target}")
+            return
         print(f"already installed: {target}")
         return
     if not has_route_hook and ANCHOR not in source:

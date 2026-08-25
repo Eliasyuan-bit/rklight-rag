@@ -70,8 +70,9 @@ if "$WITH_DOCUMENT_VISION"; then
 fi
 
 run_step "Fetch pinned upstream LightRAG" bash ./scripts/internal/install-lightrag-upstream.sh
+run_step "Build and deploy LightRAG WebUI" bash ./scripts/internal/build-lightrag-webui.sh
 run_step "Install LightRAG extensions" bash ./scripts/internal/install-lightrag-extensions.sh
-run_step "Start services" bash ./scripts/internal/start-board.sh
+run_step "Restart services" bash ./scripts/internal/start-board.sh --restart
 run_step "Verify deployment" bash ./scripts/internal/verify-board.sh
 
 success "RKLightRAG deployment completed."

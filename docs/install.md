@@ -63,7 +63,13 @@ bash scripts/deploy-lightrag.sh --pdf-parser cloud
 bash scripts/deploy-lightrag.sh --pdf-parser rkvision
 ```
 
-`deploy-lightrag.sh` 依次初始化子模块、检查 ADB、同步编排代码、安装固定版本的官方 LightRAG、安装 Hook、启动服务并验证健康状态。`rkvision` 模式额外构建和部署 Document Vision。
+`deploy-lightrag.sh` 依次初始化子模块、检查 ADB、同步编排代码、创建板端 Python 虚拟环境、安装固定版本的官方 LightRAG、在 x86 端构建并推送官方 WebUI 静态文件、安装 Hook、启动服务并验证健康状态。`rkvision` 模式额外构建和部署 Document Vision。
+
+已完成部署的板端重启后，无需重新构建或安装，直接在 x86 开发机执行：
+
+```bash
+bash scripts/start-board.sh
+```
 
 ## PDF 解析模式
 
@@ -83,7 +89,7 @@ LIGHTRAG_UPSTREAM_URL=https://github.com/HKUDS/LightRAG.git
 LIGHTRAG_UPSTREAM_REVISION=7ecd8a0512c1f5b221456b24de225a71e1e002d8
 ```
 
-安装脚本会克隆该提交并执行 `python3 -m pip install -e ".[api]"`。固定提交保证 Hook 的目标文件和锚点保持可验证；升级上游前应重新验证 Hook 安装、上传和查询。
+安装脚本会在 `$BOARD_APP_ROOT/venv` 创建独立 Python 环境；若板端缺少 `python3.11-venv` 会自动安装。官方 LightRAG 与 RKVision 插件均安装在该 venv 内，不修改系统 Python。随后脚本会在 x86 开发机构建官方 WebUI 静态文件并推送到板端。固定提交保证 Hook 的目标文件和锚点保持可验证；升级上游前应重新验证 Hook 安装、上传和查询。
 
 ## 脚本入口
 
@@ -92,5 +98,6 @@ LIGHTRAG_UPSTREAM_REVISION=7ecd8a0512c1f5b221456b24de225a71e1e002d8
 | `bash scripts/setup-board.sh --pdf-parser rkvision` | 完整本地部署。 |
 | `bash scripts/setup-model-services.sh` | 只构建并部署 RK1828 模型服务。 |
 | `bash scripts/deploy-lightrag.sh --pdf-parser cloud` | 模型服务已准备好时，只安装 LightRAG WebUI 与编排。 |
+| `bash scripts/start-board.sh` | 已部署板端的日常启动与健康检查。 |
 
 `scripts/internal/` 是上述入口调用的内部步骤，不作为日常操作入口。

@@ -11,6 +11,8 @@
 
 `deploy/board.env` 与 `deploy/lightrag.env` 包含机器相关配置和可能的密钥，不提交到 Git；从 `.example` 创建即可。
 
+LightRAG 的 Python 运行环境由部署脚本自动创建在 `$BOARD_APP_ROOT/venv`。首次部署会在必要时安装 Debian 的 `python3.11-venv`；不需要手工执行 `pip install`，也不需要使用 `--break-system-packages`。官方 WebUI 同样由部署脚本在 x86 开发机构建为静态文件后推送到板端。
+
 ## 1. 部署目标：`deploy/board.env`
 
 在 x86 开发机创建：
