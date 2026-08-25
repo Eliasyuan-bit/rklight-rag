@@ -6,6 +6,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if ! require_variables RK3588_SDK_ROOT PDFIUM_ROOT RK_VISION_PPOCR_SERVICE_ROOT RK_VISION_DOCLAYOUT_SERVICE_ROOT; then
   hint "RKVision requires RK3588 SDK, aarch64 PDFium, and host-side PPOCR/Layout build directories."
+  hint "export RK3588_SDK_ROOT=<path-to-rk3588-sdk>"
+  hint "export PDFIUM_ROOT=<path-to-aarch64-pdfium>"
+  hint "export RK_VISION_PPOCR_SERVICE_ROOT=<path-to-host-ppocr-service>"
+  hint "export RK_VISION_DOCLAYOUT_SERVICE_ROOT=<path-to-host-doclayout-service>"
   hint "See 'Local RKVision PDF sidecar build variables' in docs/environment.md."
   exit 2
 fi
