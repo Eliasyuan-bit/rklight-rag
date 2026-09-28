@@ -8,6 +8,29 @@
 
 题目覆盖流程、命令、故障分支、数值表格、跨行比较、术语和证据边界。`expected` 是语义验收要点，不要求回答逐字一致；`forbidden` 用于识别串表、串章节和无依据断言。评测集本身不要上传到知识库。
 
+## 问答性能基线（含模型 token 数）
+
+在服务空闲、三份文档已完成建库后，在板端运行：
+
+```bash
+cd /userdata/rklight-rag/evals/three-docs-v1
+python3 benchmark_qa.py --repeat 1 \
+  --output /userdata/lightrag-data/eval-results/qa-performance.json
+```
+
+默认按固定顺序运行 9 题，单客户端串行，查询参数与下方回归一致。每题保存端到端首字时间、
+总耗时、最终回答模型的输入和输出 token 数、所有 LLM 调用的 token 总数，以及辅助调用
+明细；也记录 embedding 和 rerank 的调用次数、耗时、输入项数和重排候选数。token 数取自
+RKLLM 流式响应的原生 `usage`；当前向量模型服务不返回 token 数，因此它们的规模只按
+输入项、字符数和候选数报告，不伪造 token。若 LLM 没有调用或没有返回用量，
+结果会标记 `no_model_call` 或 `native_usage_missing`，不使用字符数估算。最终模型输出
+token 包括可能被网关过滤的模型引用尾注，因此不一定等于页面可见答案的 token 数。
+可以用 `--question '你的业务问题'` 测单个新问题，用 `--ids FT02 SDK08` 固定子集，或用
+`--mode naive`、`--mode mix` 切换查询模式。
+
+汇总提供中位数、P95、范围和成功率。单客户端每分钟完成量只是本组串行负载的吞吐，
+不能推断并发容量。完整性能结论还需要重复测量并记录缓存状态、设备温度和其他负载。
+
 ## 板端自动跑题
 
 部署后在 RK3588 板端直接执行：

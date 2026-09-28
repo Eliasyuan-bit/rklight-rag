@@ -1,0 +1,550 @@
+{
+  "started_at": "2026-09-24T10:15:16.951049+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 5,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "naive",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "UCM630x 支持哪些网络模式？",
+      "ttft_ms": 1961.2,
+      "total_ms": 2089.1,
+      "http_status": 200,
+      "error": null,
+      "answer": "UCM630x 支持以下网络模式：\n* 路由模式\n* 交换机模式\n* 双模式\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-305/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 107,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1100,
+          "output_tokens": 28,
+          "total_tokens": 1128,
+          "prompt_ms": 710.419,
+          "predicted_ms": 317.546,
+          "decode_tps": 85.02705119888142,
+          "elapsed_ms": 1071.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 105,
+          "kind": "embedding",
+          "elapsed_ms": 30.0,
+          "input_items": 1,
+          "input_chars": 17,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 14,
+          "tokens_per_item": [
+            14
+          ],
+          "input_tps": 466.48,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 106,
+          "kind": "rerank",
+          "elapsed_ms": 738.6,
+          "input_items": null,
+          "input_chars": 6256,
+          "candidate_count": 6,
+          "query_chars": 17,
+          "vector_dimensions": null,
+          "input_tokens": 2196,
+          "tokens_per_item": [
+            194,
+            450,
+            351,
+            443,
+            514,
+            244
+          ],
+          "input_tps": 2973.23,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.0,
+      "rerank_ms": 738.6,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 14,
+      "rerank_input_tokens": 2196,
+      "final_input_tokens": 1100,
+      "final_output_tokens": 28,
+      "all_llm_input_tokens": 1100,
+      "all_llm_output_tokens": 28,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "UCM630x 支持哪些网络模式？",
+      "ttft_ms": 1964.5,
+      "total_ms": 2085.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "UCM630x 支持以下网络模式：\n* 路由模式\n* 交换机模式\n* 双模式\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-305/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 110,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1100,
+          "output_tokens": 28,
+          "total_tokens": 1128,
+          "prompt_ms": 706.526,
+          "predicted_ms": 317.857,
+          "decode_tps": 84.9438584017341,
+          "elapsed_ms": 1107.0,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 108,
+          "kind": "embedding",
+          "elapsed_ms": 30.3,
+          "input_items": 1,
+          "input_chars": 17,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 14,
+          "tokens_per_item": [
+            14
+          ],
+          "input_tps": 461.61,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 109,
+          "kind": "rerank",
+          "elapsed_ms": 745.3,
+          "input_items": null,
+          "input_chars": 6256,
+          "candidate_count": 6,
+          "query_chars": 17,
+          "vector_dimensions": null,
+          "input_tokens": 2196,
+          "tokens_per_item": [
+            194,
+            450,
+            351,
+            443,
+            514,
+            244
+          ],
+          "input_tps": 2946.54,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.3,
+      "rerank_ms": 745.3,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 14,
+      "rerank_input_tokens": 2196,
+      "final_input_tokens": 1100,
+      "final_output_tokens": 28,
+      "all_llm_input_tokens": 1100,
+      "all_llm_output_tokens": 28,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "UCM630x 支持哪些网络模式？",
+      "ttft_ms": 1985.9,
+      "total_ms": 2107.3,
+      "http_status": 200,
+      "error": null,
+      "answer": "UCM630x 支持以下网络模式：\n* 路由模式\n* 交换机模式\n* 双模式\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-305/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 113,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1100,
+          "output_tokens": 28,
+          "total_tokens": 1128,
+          "prompt_ms": 706.27,
+          "predicted_ms": 317.757,
+          "decode_tps": 84.97059073442914,
+          "elapsed_ms": 1074.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 111,
+          "kind": "embedding",
+          "elapsed_ms": 32.4,
+          "input_items": 1,
+          "input_chars": 17,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 14,
+          "tokens_per_item": [
+            14
+          ],
+          "input_tps": 432.57,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 112,
+          "kind": "rerank",
+          "elapsed_ms": 749.9,
+          "input_items": null,
+          "input_chars": 6256,
+          "candidate_count": 6,
+          "query_chars": 17,
+          "vector_dimensions": null,
+          "input_tokens": 2196,
+          "tokens_per_item": [
+            194,
+            450,
+            351,
+            443,
+            514,
+            244
+          ],
+          "input_tps": 2928.51,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 32.4,
+      "rerank_ms": 749.9,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 14,
+      "rerank_input_tokens": 2196,
+      "final_input_tokens": 1100,
+      "final_output_tokens": 28,
+      "all_llm_input_tokens": 1100,
+      "all_llm_output_tokens": 28,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 4,
+      "question": "UCM630x 支持哪些网络模式？",
+      "ttft_ms": 1941.7,
+      "total_ms": 2062.6,
+      "http_status": 200,
+      "error": null,
+      "answer": "UCM630x 支持以下网络模式：\n* 路由模式\n* 交换机模式\n* 双模式\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-305/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 116,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1100,
+          "output_tokens": 28,
+          "total_tokens": 1128,
+          "prompt_ms": 701.899,
+          "predicted_ms": 318.071,
+          "decode_tps": 84.8867076847622,
+          "elapsed_ms": 1063.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 114,
+          "kind": "embedding",
+          "elapsed_ms": 34.8,
+          "input_items": 1,
+          "input_chars": 17,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 14,
+          "tokens_per_item": [
+            14
+          ],
+          "input_tps": 402.62,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 115,
+          "kind": "rerank",
+          "elapsed_ms": 732.1,
+          "input_items": null,
+          "input_chars": 6256,
+          "candidate_count": 6,
+          "query_chars": 17,
+          "vector_dimensions": null,
+          "input_tokens": 2196,
+          "tokens_per_item": [
+            194,
+            450,
+            351,
+            443,
+            514,
+            244
+          ],
+          "input_tps": 2999.59,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 34.8,
+      "rerank_ms": 732.1,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 14,
+      "rerank_input_tokens": 2196,
+      "final_input_tokens": 1100,
+      "final_output_tokens": 28,
+      "all_llm_input_tokens": 1100,
+      "all_llm_output_tokens": 28,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 5,
+      "question": "UCM630x 支持哪些网络模式？",
+      "ttft_ms": 1979.6,
+      "total_ms": 2098.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "UCM630x 支持以下网络模式：\n* 路由模式\n* 交换机模式\n* 双模式\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-305/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 119,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1100,
+          "output_tokens": 28,
+          "total_tokens": 1128,
+          "prompt_ms": 705.447,
+          "predicted_ms": 318.987,
+          "decode_tps": 84.64294783172981,
+          "elapsed_ms": 1108.6,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 117,
+          "kind": "embedding",
+          "elapsed_ms": 29.8,
+          "input_items": 1,
+          "input_chars": 17,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 14,
+          "tokens_per_item": [
+            14
+          ],
+          "input_tps": 470.35,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 118,
+          "kind": "rerank",
+          "elapsed_ms": 743.3,
+          "input_items": null,
+          "input_chars": 6256,
+          "candidate_count": 6,
+          "query_chars": 17,
+          "vector_dimensions": null,
+          "input_tokens": 2196,
+          "tokens_per_item": [
+            194,
+            450,
+            351,
+            443,
+            514,
+            244
+          ],
+          "input_tps": 2954.42,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 29.8,
+      "rerank_ms": 743.3,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 14,
+      "rerank_input_tokens": 2196,
+      "final_input_tokens": 1100,
+      "final_output_tokens": 28,
+      "all_llm_input_tokens": 1100,
+      "all_llm_output_tokens": 28,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-24T10:15:27.474411+08:00",
+  "summary": {
+    "requested": 5,
+    "successful": 5,
+    "errors": 0,
+    "single_client_queries_per_minute": 28.51,
+    "ttft_ms": {
+      "count": 5,
+      "median": 1964.5,
+      "p95": 1985.9,
+      "min": 1941.7,
+      "max": 1985.9
+    },
+    "total_ms": {
+      "count": 5,
+      "median": 2089.1,
+      "p95": 2107.3,
+      "min": 2062.6,
+      "max": 2107.3
+    },
+    "final_input_tokens": {
+      "count": 5,
+      "median": 1100,
+      "p95": 1100,
+      "min": 1100,
+      "max": 1100
+    },
+    "final_output_tokens": {
+      "count": 5,
+      "median": 28,
+      "p95": 28,
+      "min": 28,
+      "max": 28
+    },
+    "all_llm_input_tokens": {
+      "count": 5,
+      "median": 1100,
+      "p95": 1100,
+      "min": 1100,
+      "max": 1100
+    },
+    "all_llm_output_tokens": {
+      "count": 5,
+      "median": 28,
+      "p95": 28,
+      "min": 28,
+      "max": 28
+    },
+    "embedding_ms": {
+      "count": 5,
+      "median": 30.3,
+      "p95": 34.8,
+      "min": 29.8,
+      "max": 34.8
+    },
+    "rerank_ms": {
+      "count": 5,
+      "median": 743.3,
+      "p95": 749.9,
+      "min": 732.1,
+      "max": 749.9
+    },
+    "embedding_input_tokens": {
+      "count": 5,
+      "median": 14,
+      "p95": 14,
+      "min": 14,
+      "max": 14
+    },
+    "rerank_input_tokens": {
+      "count": 5,
+      "median": 2196,
+      "p95": 2196,
+      "min": 2196,
+      "max": 2196
+    },
+    "embedding_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 5,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 5,
+    "no_model_call": 0
+  }
+}

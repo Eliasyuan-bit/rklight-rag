@@ -1,0 +1,217 @@
+{
+  "started_at": "2026-09-23T16:36:02.757494+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": [],
+      "user_prompt": "只根据给定上下文直接回答。若上下文仅列出部分型号或项目，应完整回答已列出的结果，不要因无法确认未列出的内容而拒答。只回答问题直接要求的字段，禁止补充准确率等未询问指标。答案保持简洁完整。"
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2040.8,
+      "total_ms": 3136.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，点击“Edit”编辑呼叫队列。\n3. 在呼叫队列配置参数表中，将 Extension 设置为呼叫队列的扩展号码。\n4. 在呼叫队列配置参数表中，将 Name 设置为呼叫队列的名称。\n5. 在呼叫队列配置参数表中，将 Strategy 设置为呼叫队列的呼叫策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 72,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1246,
+          "output_tokens": 103,
+          "total_tokens": 1349,
+          "prompt_ms": 786.238,
+          "predicted_ms": 1198.173,
+          "decode_tps": 85.12960983096765,
+          "elapsed_ms": 2031.0,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 70,
+          "kind": "embedding",
+          "elapsed_ms": 84.6,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 378.24,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 71,
+          "kind": "rerank",
+          "elapsed_ms": 774.1,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2826.59,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 84.6,
+      "rerank_ms": 774.1,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1246,
+      "final_output_tokens": 103,
+      "all_llm_input_tokens": 1246,
+      "all_llm_output_tokens": 103,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-23T16:36:05.898862+08:00",
+  "summary": {
+    "requested": 1,
+    "successful": 1,
+    "errors": 0,
+    "single_client_queries_per_minute": 19.1,
+    "ttft_ms": {
+      "count": 1,
+      "median": 2040.8,
+      "p95": 2040.8,
+      "min": 2040.8,
+      "max": 2040.8
+    },
+    "total_ms": {
+      "count": 1,
+      "median": 3136.9,
+      "p95": 3136.9,
+      "min": 3136.9,
+      "max": 3136.9
+    },
+    "final_input_tokens": {
+      "count": 1,
+      "median": 1246,
+      "p95": 1246,
+      "min": 1246,
+      "max": 1246
+    },
+    "final_output_tokens": {
+      "count": 1,
+      "median": 103,
+      "p95": 103,
+      "min": 103,
+      "max": 103
+    },
+    "all_llm_input_tokens": {
+      "count": 1,
+      "median": 1246,
+      "p95": 1246,
+      "min": 1246,
+      "max": 1246
+    },
+    "all_llm_output_tokens": {
+      "count": 1,
+      "median": 103,
+      "p95": 103,
+      "min": 103,
+      "max": 103
+    },
+    "embedding_ms": {
+      "count": 1,
+      "median": 84.6,
+      "p95": 84.6,
+      "min": 84.6,
+      "max": 84.6
+    },
+    "rerank_ms": {
+      "count": 1,
+      "median": 774.1,
+      "p95": 774.1,
+      "min": 774.1,
+      "max": 774.1
+    },
+    "embedding_input_tokens": {
+      "count": 1,
+      "median": 32,
+      "p95": 32,
+      "min": 32,
+      "max": 32
+    },
+    "rerank_input_tokens": {
+      "count": 1,
+      "median": 2188,
+      "p95": 2188,
+      "min": 2188,
+      "max": 2188
+    },
+    "embedding_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 1,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 1,
+    "no_model_call": 0
+  }
+}

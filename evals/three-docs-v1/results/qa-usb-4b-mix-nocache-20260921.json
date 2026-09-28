@@ -1,0 +1,436 @@
+{
+  "started_at": "2026-09-21T16:52:21.047317+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-4b-query",
+    "concurrency": 1,
+    "repeat": 3,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "USB错误是为什么？",
+      "ttft_ms": 4964.2,
+      "total_ms": 6230.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "USB 错误产生的原因如下：\n1. 设备未检测到 USB2.0 或 USB3.0 接口。\n2. 通过 ADB 发送 date 命令到 RK1820 的输出中不包含 \"local\" 字样。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 23,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1183,
+          "output_tokens": 78,
+          "total_tokens": 1261,
+          "prompt_ms": 1547.37,
+          "predicted_ms": 1552.346,
+          "decode_tps": 49.60234380737284,
+          "elapsed_ms": 3130.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 20,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 657,
+          "output_tokens": 28,
+          "total_tokens": 685,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1482.0,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 21,
+          "kind": "embedding",
+          "elapsed_ms": 79.3,
+          "input_items": 3,
+          "input_chars": 22,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 16,
+          "tokens_per_item": [
+            6,
+            2,
+            8
+          ],
+          "input_tps": 201.71,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 22,
+          "kind": "rerank",
+          "elapsed_ms": 867.2,
+          "input_items": null,
+          "input_chars": 4842,
+          "candidate_count": 6,
+          "query_chars": 10,
+          "vector_dimensions": null,
+          "input_tokens": 2937,
+          "tokens_per_item": [
+            245,
+            615,
+            105,
+            591,
+            756,
+            625
+          ],
+          "input_tps": 3386.76,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 79.3,
+      "rerank_ms": 867.2,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 16,
+      "rerank_input_tokens": 2937,
+      "final_input_tokens": 1183,
+      "final_output_tokens": 78,
+      "all_llm_input_tokens": 1840,
+      "all_llm_output_tokens": 106,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "USB错误是为什么？",
+      "ttft_ms": 4501.2,
+      "total_ms": 5771.5,
+      "http_status": 200,
+      "error": null,
+      "answer": "USB 错误产生的原因如下：\n1. 设备未检测到 USB2.0 或 USB3.0 接口。\n2. 通过 ADB 发送 date 命令到 RK1820 的输出中不包含 \"local\" 字样。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 27,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1183,
+          "output_tokens": 78,
+          "total_tokens": 1261,
+          "prompt_ms": 1547.778,
+          "predicted_ms": 1550.992,
+          "decode_tps": 49.64564614130827,
+          "elapsed_ms": 3163.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 24,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 657,
+          "output_tokens": 28,
+          "total_tokens": 685,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1479.6,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 25,
+          "kind": "embedding",
+          "elapsed_ms": 79.2,
+          "input_items": 3,
+          "input_chars": 22,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 16,
+          "tokens_per_item": [
+            6,
+            2,
+            8
+          ],
+          "input_tps": 202.01,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 26,
+          "kind": "rerank",
+          "elapsed_ms": 866.2,
+          "input_items": null,
+          "input_chars": 4842,
+          "candidate_count": 6,
+          "query_chars": 10,
+          "vector_dimensions": null,
+          "input_tokens": 2937,
+          "tokens_per_item": [
+            245,
+            615,
+            105,
+            591,
+            756,
+            625
+          ],
+          "input_tps": 3390.48,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 79.2,
+      "rerank_ms": 866.2,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 16,
+      "rerank_input_tokens": 2937,
+      "final_input_tokens": 1183,
+      "final_output_tokens": 78,
+      "all_llm_input_tokens": 1840,
+      "all_llm_output_tokens": 106,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "USB错误是为什么？",
+      "ttft_ms": 4468.0,
+      "total_ms": 5737.7,
+      "http_status": 200,
+      "error": null,
+      "answer": "USB 错误产生的原因如下：\n1. 设备未检测到 USB2.0 或 USB3.0 接口。\n2. 通过 ADB 发送 date 命令到 RK1820 的输出中不包含 \"local\" 字样。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 31,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1183,
+          "output_tokens": 78,
+          "total_tokens": 1261,
+          "prompt_ms": 1547.269,
+          "predicted_ms": 1549.72,
+          "decode_tps": 49.686394961670494,
+          "elapsed_ms": 3128.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 28,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 657,
+          "output_tokens": 28,
+          "total_tokens": 685,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1480.8,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 29,
+          "kind": "embedding",
+          "elapsed_ms": 79.3,
+          "input_items": 3,
+          "input_chars": 22,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 16,
+          "tokens_per_item": [
+            6,
+            2,
+            8
+          ],
+          "input_tps": 201.65,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 30,
+          "kind": "rerank",
+          "elapsed_ms": 865.8,
+          "input_items": null,
+          "input_chars": 4842,
+          "candidate_count": 6,
+          "query_chars": 10,
+          "vector_dimensions": null,
+          "input_tokens": 2937,
+          "tokens_per_item": [
+            245,
+            615,
+            105,
+            591,
+            756,
+            625
+          ],
+          "input_tps": 3392.39,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 79.3,
+      "rerank_ms": 865.8,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 16,
+      "rerank_input_tokens": 2937,
+      "final_input_tokens": 1183,
+      "final_output_tokens": 78,
+      "all_llm_input_tokens": 1840,
+      "all_llm_output_tokens": 106,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-21T16:52:38.938996+08:00",
+  "summary": {
+    "requested": 3,
+    "successful": 3,
+    "errors": 0,
+    "single_client_queries_per_minute": 10.06,
+    "ttft_ms": {
+      "count": 3,
+      "median": 4501.2,
+      "p95": 4964.2,
+      "min": 4468.0,
+      "max": 4964.2
+    },
+    "total_ms": {
+      "count": 3,
+      "median": 5771.5,
+      "p95": 6230.8,
+      "min": 5737.7,
+      "max": 6230.8
+    },
+    "final_input_tokens": {
+      "count": 3,
+      "median": 1183,
+      "p95": 1183,
+      "min": 1183,
+      "max": 1183
+    },
+    "final_output_tokens": {
+      "count": 3,
+      "median": 78,
+      "p95": 78,
+      "min": 78,
+      "max": 78
+    },
+    "all_llm_input_tokens": {
+      "count": 3,
+      "median": 1840,
+      "p95": 1840,
+      "min": 1840,
+      "max": 1840
+    },
+    "all_llm_output_tokens": {
+      "count": 3,
+      "median": 106,
+      "p95": 106,
+      "min": 106,
+      "max": 106
+    },
+    "embedding_ms": {
+      "count": 3,
+      "median": 79.3,
+      "p95": 79.3,
+      "min": 79.2,
+      "max": 79.3
+    },
+    "rerank_ms": {
+      "count": 3,
+      "median": 866.2,
+      "p95": 867.2,
+      "min": 865.8,
+      "max": 867.2
+    },
+    "embedding_input_tokens": {
+      "count": 3,
+      "median": 16,
+      "p95": 16,
+      "min": 16,
+      "max": 16
+    },
+    "rerank_input_tokens": {
+      "count": 3,
+      "median": 2937,
+      "p95": 2937,
+      "min": 2937,
+      "max": 2937
+    },
+    "embedding_call_count": {
+      "count": 3,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 3,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 3,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 3,
+    "no_model_call": 0
+  }
+}

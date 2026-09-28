@@ -26,6 +26,7 @@ def post_stream(url, payload, timeout):
         method="POST",
     )
     started = time.monotonic()
+    deadline = started + timeout
     answer_parts, references, progress = [], [], []
     ttft_ms = None
     status = None
@@ -34,6 +35,13 @@ def post_stream(url, payload, timeout):
         with urlopen(request, timeout=timeout) as response:
             status = response.status
             for raw_line in response:
+                # ``urlopen(..., timeout=...)`` bounds a single socket read,
+                # not a streaming request's total lifetime.  Progress events
+                # can otherwise keep an unhealthy generation alive forever
+                # during a serial regression run.
+                if time.monotonic() >= deadline:
+                    error = f"evaluation timeout after {timeout:g}s"
+                    break
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue

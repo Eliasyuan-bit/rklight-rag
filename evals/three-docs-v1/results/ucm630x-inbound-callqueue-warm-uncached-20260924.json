@@ -1,0 +1,260 @@
+{
+  "started_at": "2026-09-24T09:26:49.823705+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5395.6,
+      "total_ms": 6895.1,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n1. **Proficiency Routing（熟练度路由）**：将呼叫分配给具有相应技能水平的代理。\n2. **Call Distribution（呼叫分配）**：根据时间、代理和队列参数进行分配。\n3. **Time Condition Routing（时间条件路由）**：根据时间条件创建默认目的地。\n4. **IVR Black/Whitelist（IVR 黑名单/白名单）**：根据白名单和黑名单设置限制呼叫路由。\n\n**例外**：若上下文未明确指定具体策略，则无法确认分配方式。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 20,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1915,
+          "output_tokens": 132,
+          "total_tokens": 2047,
+          "prompt_ms": 1188.164,
+          "predicted_ms": 1587.656,
+          "decode_tps": 82.51157681512872,
+          "elapsed_ms": 2831.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 16,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1152.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 17,
+          "kind": "embedding",
+          "elapsed_ms": 87.7,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 524.65,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 18,
+          "kind": "rerank",
+          "elapsed_ms": 2116.8,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2871.85,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 19,
+          "kind": "rerank",
+          "elapsed_ms": 260.3,
+          "input_items": null,
+          "input_chars": 1129,
+          "candidate_count": 5,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 677,
+          "tokens_per_item": [
+            197,
+            116,
+            142,
+            110,
+            112
+          ],
+          "input_tps": 2600.49,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 87.7,
+      "rerank_ms": 2377.1,
+      "embedding_input_items": 3,
+      "rerank_candidates": 19,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 6756,
+      "final_input_tokens": 1915,
+      "final_output_tokens": 132,
+      "all_llm_input_tokens": 2584,
+      "all_llm_output_tokens": 186,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-24T09:26:56.734559+08:00",
+  "summary": {
+    "requested": 1,
+    "successful": 1,
+    "errors": 0,
+    "single_client_queries_per_minute": 8.69,
+    "ttft_ms": {
+      "count": 1,
+      "median": 5395.6,
+      "p95": 5395.6,
+      "min": 5395.6,
+      "max": 5395.6
+    },
+    "total_ms": {
+      "count": 1,
+      "median": 6895.1,
+      "p95": 6895.1,
+      "min": 6895.1,
+      "max": 6895.1
+    },
+    "final_input_tokens": {
+      "count": 1,
+      "median": 1915,
+      "p95": 1915,
+      "min": 1915,
+      "max": 1915
+    },
+    "final_output_tokens": {
+      "count": 1,
+      "median": 132,
+      "p95": 132,
+      "min": 132,
+      "max": 132
+    },
+    "all_llm_input_tokens": {
+      "count": 1,
+      "median": 2584,
+      "p95": 2584,
+      "min": 2584,
+      "max": 2584
+    },
+    "all_llm_output_tokens": {
+      "count": 1,
+      "median": 186,
+      "p95": 186,
+      "min": 186,
+      "max": 186
+    },
+    "embedding_ms": {
+      "count": 1,
+      "median": 87.7,
+      "p95": 87.7,
+      "min": 87.7,
+      "max": 87.7
+    },
+    "rerank_ms": {
+      "count": 1,
+      "median": 2377.1,
+      "p95": 2377.1,
+      "min": 2377.1,
+      "max": 2377.1
+    },
+    "embedding_input_tokens": {
+      "count": 1,
+      "median": 46,
+      "p95": 46,
+      "min": 46,
+      "max": 46
+    },
+    "rerank_input_tokens": {
+      "count": 1,
+      "median": 6756,
+      "p95": 6756,
+      "min": 6756,
+      "max": 6756
+    },
+    "embedding_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 1,
+      "median": 2,
+      "p95": 2,
+      "min": 2,
+      "max": 2
+    },
+    "rerank_candidates": {
+      "count": 1,
+      "median": 19,
+      "p95": 19,
+      "min": 19,
+      "max": 19
+    },
+    "native_usage_available": 1,
+    "no_model_call": 0
+  }
+}

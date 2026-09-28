@@ -1,0 +1,23 @@
+{
+  "model": "Qwen3-Embedding-0.6B",
+  "device": "RK1828",
+  "workload": "One text per request, five different prefixes, same repeated Chinese/English technical sentence, each verified as 1024 native RKNN3 n_prefill_tokens",
+  "timing_scope": "Gateway internal request time, including worker communication and vector normalization",
+  "samples": [
+    {"index": 1, "chars": 1872, "input_tokens": 1024, "internal_ms": 255.9, "client_ms": 265.57, "effective_input_tps": 4001.48},
+    {"index": 2, "chars": 1872, "input_tokens": 1024, "internal_ms": 251.9, "client_ms": 262.31, "effective_input_tps": 4065.26},
+    {"index": 3, "chars": 1872, "input_tokens": 1024, "internal_ms": 251.7, "client_ms": 261.29, "effective_input_tps": 4067.94},
+    {"index": 4, "chars": 1872, "input_tokens": 1024, "internal_ms": 251.7, "client_ms": 261.28, "effective_input_tps": 4067.98},
+    {"index": 5, "chars": 1872, "input_tokens": 1024, "internal_ms": 251.8, "client_ms": 261.53, "effective_input_tps": 4067.09}
+  ],
+  "summary": {
+    "internal_ms_median": 251.8,
+    "client_ms_median": 261.53,
+    "effective_input_tps_median": 4067.09
+  },
+  "repeat_same_text_observation": {
+    "first_internal_ms": 255.2,
+    "subsequent_internal_ms": [38.7, 39.9, 39.8, 39.8, 38.5],
+    "note": "Repeated identical prompt appears to benefit from prompt/prefix caching; exclude it from cold/new-text throughput."
+  }
+}

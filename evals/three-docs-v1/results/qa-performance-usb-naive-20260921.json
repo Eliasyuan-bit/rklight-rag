@@ -1,0 +1,185 @@
+{
+  "started_at": "2026-04-27T21:07:55.459626+00:00",
+  "conditions": {
+    "url": "http://127.0.0.1:9621",
+    "gateway_url": "http://127.0.0.1:8100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "naive",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage. Vector daemons do not expose token counts; call size is reported as items, characters, and rerank candidates."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 2277.6,
+      "total_ms": 3799.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因如下：\n1. 遍历 `/sys/bus/usb/devices/` 查找 `speed=5000` 的 CherryUSB ADB 设备，连接成功后通过 ADB 发送 `date` 命令，验证返回是否包含 `local` 关键字。\n2. 进入 `MaskRom/Loader` 模式，按照表 3 确定产品型号，若写入产品号失败，则读取 PN 字段并打印，确认 FIT1 阶段是否已正确写入产品号。\n3. 若无法确定上面 CPU 到 RK860-5 之间的具体组件，记录整体测试失败。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.text — 行：USB](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-009/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 10,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1613,
+          "output_tokens": 142,
+          "total_tokens": 1755,
+          "prompt_ms": 1057.009,
+          "predicted_ms": 1689.725,
+          "decode_tps": 83.4455310775422,
+          "elapsed_ms": 2798.4,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 8,
+          "kind": "embedding",
+          "elapsed_ms": 30.6,
+          "input_items": 1,
+          "input_chars": 18,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": null,
+          "token_note": "native_vector_daemon_does_not_return_token_count"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 9,
+          "kind": "rerank",
+          "elapsed_ms": 235.2,
+          "input_items": null,
+          "input_chars": 1119,
+          "candidate_count": 1,
+          "query_chars": 18,
+          "vector_dimensions": null,
+          "input_tokens": null,
+          "token_note": "native_vector_daemon_does_not_return_token_count"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.6,
+      "rerank_ms": 235.2,
+      "embedding_input_items": 1,
+      "rerank_candidates": 1,
+      "final_input_tokens": 1613,
+      "final_output_tokens": 142,
+      "all_llm_input_tokens": 1613,
+      "all_llm_output_tokens": 142,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-04-27T21:07:59.265077+00:00",
+  "summary": {
+    "requested": 1,
+    "successful": 1,
+    "errors": 0,
+    "single_client_queries_per_minute": 15.77,
+    "ttft_ms": {
+      "count": 1,
+      "median": 2277.6,
+      "p95": 2277.6,
+      "min": 2277.6,
+      "max": 2277.6
+    },
+    "total_ms": {
+      "count": 1,
+      "median": 3799.2,
+      "p95": 3799.2,
+      "min": 3799.2,
+      "max": 3799.2
+    },
+    "final_input_tokens": {
+      "count": 1,
+      "median": 1613,
+      "p95": 1613,
+      "min": 1613,
+      "max": 1613
+    },
+    "final_output_tokens": {
+      "count": 1,
+      "median": 142,
+      "p95": 142,
+      "min": 142,
+      "max": 142
+    },
+    "all_llm_input_tokens": {
+      "count": 1,
+      "median": 1613,
+      "p95": 1613,
+      "min": 1613,
+      "max": 1613
+    },
+    "all_llm_output_tokens": {
+      "count": 1,
+      "median": 142,
+      "p95": 142,
+      "min": 142,
+      "max": 142
+    },
+    "embedding_ms": {
+      "count": 1,
+      "median": 30.6,
+      "p95": 30.6,
+      "min": 30.6,
+      "max": 30.6
+    },
+    "rerank_ms": {
+      "count": 1,
+      "median": 235.2,
+      "p95": 235.2,
+      "min": 235.2,
+      "max": 235.2
+    },
+    "embedding_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "native_usage_available": 1,
+    "no_model_call": 0
+  }
+}

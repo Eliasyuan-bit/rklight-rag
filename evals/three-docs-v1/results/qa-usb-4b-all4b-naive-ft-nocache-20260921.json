@@ -1,0 +1,367 @@
+{
+  "started_at": "2026-09-21T17:01:39.044628+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-4b-query",
+    "concurrency": 1,
+    "repeat": 3,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "naive",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 2704.4,
+      "total_ms": 3949.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因是：USB 连接及 ADB 通信测试失败。具体表现为遍历 `/sys/bus/usb/devices/` 查找 `speed=5000` 的 CherryUSB ADB 设备失败，或连接成功后通过 ADB 发送 `date` 命令验证返回不含 `local` 关键字。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.text — 行：USB](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-009/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 55,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1613,
+          "output_tokens": 74,
+          "total_tokens": 1687,
+          "prompt_ms": 2024.311,
+          "predicted_ms": 1488.463,
+          "decode_tps": 49.04387949179792,
+          "elapsed_ms": 3545.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 53,
+          "kind": "embedding",
+          "elapsed_ms": 30.3,
+          "input_items": 1,
+          "input_chars": 18,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 12,
+          "tokens_per_item": [
+            12
+          ],
+          "input_tps": 395.53,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 54,
+          "kind": "rerank",
+          "elapsed_ms": 224.7,
+          "input_items": null,
+          "input_chars": 1119,
+          "candidate_count": 1,
+          "query_chars": 18,
+          "vector_dimensions": null,
+          "input_tokens": 762,
+          "tokens_per_item": [
+            762
+          ],
+          "input_tps": 3391.2,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.3,
+      "rerank_ms": 224.7,
+      "embedding_input_items": 1,
+      "rerank_candidates": 1,
+      "embedding_input_tokens": 12,
+      "rerank_input_tokens": 762,
+      "final_input_tokens": 1613,
+      "final_output_tokens": 74,
+      "all_llm_input_tokens": 1613,
+      "all_llm_output_tokens": 74,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 2479.9,
+      "total_ms": 3724.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因是：USB 连接及 ADB 通信测试失败。具体表现为遍历 `/sys/bus/usb/devices/` 查找 `speed=5000` 的 CherryUSB ADB 设备失败，或连接成功后通过 ADB 发送 `date` 命令验证返回不含 `local` 关键字。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.text — 行：USB](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-009/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 58,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1613,
+          "output_tokens": 74,
+          "total_tokens": 1687,
+          "prompt_ms": 2019.899,
+          "predicted_ms": 1487.303,
+          "decode_tps": 49.08213054098593,
+          "elapsed_ms": 3542.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 56,
+          "kind": "embedding",
+          "elapsed_ms": 25.6,
+          "input_items": 1,
+          "input_chars": 18,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 12,
+          "tokens_per_item": [
+            12
+          ],
+          "input_tps": 468.75,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 57,
+          "kind": "rerank",
+          "elapsed_ms": 42.8,
+          "input_items": null,
+          "input_chars": 1119,
+          "candidate_count": 1,
+          "query_chars": 18,
+          "vector_dimensions": null,
+          "input_tokens": 762,
+          "tokens_per_item": [
+            762
+          ],
+          "input_tps": 17819.26,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 25.6,
+      "rerank_ms": 42.8,
+      "embedding_input_items": 1,
+      "rerank_candidates": 1,
+      "embedding_input_tokens": 12,
+      "rerank_input_tokens": 762,
+      "final_input_tokens": 1613,
+      "final_output_tokens": 74,
+      "all_llm_input_tokens": 1613,
+      "all_llm_output_tokens": 74,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 2494.4,
+      "total_ms": 3740.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因是：USB 连接及 ADB 通信测试失败。具体表现为遍历 `/sys/bus/usb/devices/` 查找 `speed=5000` 的 CherryUSB ADB 设备失败，或连接成功后通过 ADB 发送 `date` 命令验证返回不含 `local` 关键字。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.text — 行：USB](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-009/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 61,
+          "kind": "llm",
+          "model": "qwen3.5-4b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1613,
+          "output_tokens": 74,
+          "total_tokens": 1687,
+          "prompt_ms": 2027.154,
+          "predicted_ms": 1488.259,
+          "decode_tps": 49.05060207934237,
+          "elapsed_ms": 3550.6,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 59,
+          "kind": "embedding",
+          "elapsed_ms": 26.9,
+          "input_items": 1,
+          "input_chars": 18,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 12,
+          "tokens_per_item": [
+            12
+          ],
+          "input_tps": 445.77,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 60,
+          "kind": "rerank",
+          "elapsed_ms": 42.7,
+          "input_items": null,
+          "input_chars": 1119,
+          "candidate_count": 1,
+          "query_chars": 18,
+          "vector_dimensions": null,
+          "input_tokens": 762,
+          "tokens_per_item": [
+            762
+          ],
+          "input_tps": 17827.65,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 26.9,
+      "rerank_ms": 42.7,
+      "embedding_input_items": 1,
+      "rerank_candidates": 1,
+      "embedding_input_tokens": 12,
+      "rerank_input_tokens": 762,
+      "final_input_tokens": 1613,
+      "final_output_tokens": 74,
+      "all_llm_input_tokens": 1613,
+      "all_llm_output_tokens": 74,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-21T17:01:50.610867+08:00",
+  "summary": {
+    "requested": 3,
+    "successful": 3,
+    "errors": 0,
+    "single_client_queries_per_minute": 15.56,
+    "ttft_ms": {
+      "count": 3,
+      "median": 2494.4,
+      "p95": 2704.4,
+      "min": 2479.9,
+      "max": 2704.4
+    },
+    "total_ms": {
+      "count": 3,
+      "median": 3740.8,
+      "p95": 3949.9,
+      "min": 3724.9,
+      "max": 3949.9
+    },
+    "final_input_tokens": {
+      "count": 3,
+      "median": 1613,
+      "p95": 1613,
+      "min": 1613,
+      "max": 1613
+    },
+    "final_output_tokens": {
+      "count": 3,
+      "median": 74,
+      "p95": 74,
+      "min": 74,
+      "max": 74
+    },
+    "all_llm_input_tokens": {
+      "count": 3,
+      "median": 1613,
+      "p95": 1613,
+      "min": 1613,
+      "max": 1613
+    },
+    "all_llm_output_tokens": {
+      "count": 3,
+      "median": 74,
+      "p95": 74,
+      "min": 74,
+      "max": 74
+    },
+    "embedding_ms": {
+      "count": 3,
+      "median": 26.9,
+      "p95": 30.3,
+      "min": 25.6,
+      "max": 30.3
+    },
+    "rerank_ms": {
+      "count": 3,
+      "median": 42.8,
+      "p95": 224.7,
+      "min": 42.7,
+      "max": 224.7
+    },
+    "embedding_input_tokens": {
+      "count": 3,
+      "median": 12,
+      "p95": 12,
+      "min": 12,
+      "max": 12
+    },
+    "rerank_input_tokens": {
+      "count": 3,
+      "median": 762,
+      "p95": 762,
+      "min": 762,
+      "max": 762
+    },
+    "embedding_call_count": {
+      "count": 3,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 3,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 3,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "native_usage_available": 3,
+    "no_model_call": 0
+  }
+}

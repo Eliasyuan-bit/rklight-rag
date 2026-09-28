@@ -1,0 +1,825 @@
+{
+  "started_at": "2026-09-24T10:05:15.049945+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 5,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5628.7,
+      "total_ms": 7779.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文信息，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n*   **Ring All**：Ring all available Agents simultaneously until one answers.\n*   **Linear**：Ring agents in the specified order.\n*   **Least Recent**：Ring the agent who has been called the least recently.\n*   **Fewest Calls**：Ring the agent with the fewest completed calls.\n*   **Random**：Ring a random agent.\n*   **Round Robin**：Ring the agents in Round Robin scheduling with memory.\n\n**例外**：默认设置是“Ring All”。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md · 3 处命中](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view?hits=doc-787f025f589fc681cd398e2fe9683200-chunk-481,doc-787f025f589fc681cd398e2fe9683200-chunk-485#cited-passage)",
+      "reference_count": 3,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 80,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1462,
+          "output_tokens": 191,
+          "total_tokens": 1653,
+          "prompt_ms": 947.523,
+          "predicted_ms": 2247.913,
+          "decode_tps": 84.5228440780404,
+          "elapsed_ms": 3273.8,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 76,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1119.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 77,
+          "kind": "embedding",
+          "elapsed_ms": 91.5,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 502.72,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 78,
+          "kind": "rerank",
+          "elapsed_ms": 2088.4,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2910.86,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 79,
+          "kind": "rerank",
+          "elapsed_ms": 706.3,
+          "input_items": null,
+          "input_chars": 3356,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 1935,
+          "tokens_per_item": [
+            197,
+            112,
+            327,
+            116,
+            113,
+            142,
+            133,
+            110,
+            110,
+            112,
+            121,
+            112,
+            124,
+            106
+          ],
+          "input_tps": 2739.69,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 91.5,
+      "rerank_ms": 2794.7,
+      "embedding_input_items": 3,
+      "rerank_candidates": 28,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 8014,
+      "final_input_tokens": 1462,
+      "final_output_tokens": 191,
+      "all_llm_input_tokens": 2131,
+      "all_llm_output_tokens": 245,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5597.0,
+      "total_ms": 7756.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文信息，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n*   **Ring All**：Ring all available Agents simultaneously until one answers.\n*   **Linear**：Ring agents in the specified order.\n*   **Least Recent**：Ring the agent who has been called the least recently.\n*   **Fewest Calls**：Ring the agent with the fewest completed calls.\n*   **Random**：Ring a random agent.\n*   **Round Robin**：Ring the agents in Round Robin scheduling with memory.\n\n**例外**：默认设置是“Ring All”。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md · 3 处命中](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view?hits=doc-787f025f589fc681cd398e2fe9683200-chunk-481,doc-787f025f589fc681cd398e2fe9683200-chunk-485#cited-passage)",
+      "reference_count": 3,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 85,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1462,
+          "output_tokens": 191,
+          "total_tokens": 1653,
+          "prompt_ms": 950.826,
+          "predicted_ms": 2257.212,
+          "decode_tps": 84.17463667568664,
+          "elapsed_ms": 3295.1,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 81,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1147.9,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 82,
+          "kind": "embedding",
+          "elapsed_ms": 86.1,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 534.27,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 83,
+          "kind": "rerank",
+          "elapsed_ms": 2107.1,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2885.03,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 84,
+          "kind": "rerank",
+          "elapsed_ms": 718.9,
+          "input_items": null,
+          "input_chars": 3356,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 1935,
+          "tokens_per_item": [
+            197,
+            112,
+            327,
+            116,
+            113,
+            142,
+            133,
+            110,
+            110,
+            112,
+            121,
+            112,
+            124,
+            106
+          ],
+          "input_tps": 2691.67,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 86.1,
+      "rerank_ms": 2826.0,
+      "embedding_input_items": 3,
+      "rerank_candidates": 28,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 8014,
+      "final_input_tokens": 1462,
+      "final_output_tokens": 191,
+      "all_llm_input_tokens": 2131,
+      "all_llm_output_tokens": 245,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5641.3,
+      "total_ms": 7806.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文信息，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n*   **Ring All**：Ring all available Agents simultaneously until one answers.\n*   **Linear**：Ring agents in the specified order.\n*   **Least Recent**：Ring the agent who has been called the least recently.\n*   **Fewest Calls**：Ring the agent with the fewest completed calls.\n*   **Random**：Ring a random agent.\n*   **Round Robin**：Ring the agents in Round Robin scheduling with memory.\n\n**例外**：默认设置是“Ring All”。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md · 3 处命中](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view?hits=doc-787f025f589fc681cd398e2fe9683200-chunk-481,doc-787f025f589fc681cd398e2fe9683200-chunk-485#cited-passage)",
+      "reference_count": 3,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 90,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1462,
+          "output_tokens": 191,
+          "total_tokens": 1653,
+          "prompt_ms": 947.238,
+          "predicted_ms": 2260.267,
+          "decode_tps": 84.06086537563925,
+          "elapsed_ms": 3258.1,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 86,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1121.4,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 87,
+          "kind": "embedding",
+          "elapsed_ms": 89.9,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 511.73,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 88,
+          "kind": "rerank",
+          "elapsed_ms": 2130.4,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2853.51,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 89,
+          "kind": "rerank",
+          "elapsed_ms": 714.3,
+          "input_items": null,
+          "input_chars": 3356,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 1935,
+          "tokens_per_item": [
+            197,
+            112,
+            327,
+            116,
+            113,
+            142,
+            133,
+            110,
+            110,
+            112,
+            121,
+            112,
+            124,
+            106
+          ],
+          "input_tps": 2708.99,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 89.9,
+      "rerank_ms": 2844.7,
+      "embedding_input_items": 3,
+      "rerank_candidates": 28,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 8014,
+      "final_input_tokens": 1462,
+      "final_output_tokens": 191,
+      "all_llm_input_tokens": 2131,
+      "all_llm_output_tokens": 245,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 4,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5642.4,
+      "total_ms": 7804.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文信息，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n*   **Ring All**：Ring all available Agents simultaneously until one answers.\n*   **Linear**：Ring agents in the specified order.\n*   **Least Recent**：Ring the agent who has been called the least recently.\n*   **Fewest Calls**：Ring the agent with the fewest completed calls.\n*   **Random**：Ring a random agent.\n*   **Round Robin**：Ring the agents in Round Robin scheduling with memory.\n\n**例外**：默认设置是“Ring All”。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md · 3 处命中](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view?hits=doc-787f025f589fc681cd398e2fe9683200-chunk-481,doc-787f025f589fc681cd398e2fe9683200-chunk-485#cited-passage)",
+      "reference_count": 3,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 95,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1462,
+          "output_tokens": 191,
+          "total_tokens": 1653,
+          "prompt_ms": 945.167,
+          "predicted_ms": 2256.195,
+          "decode_tps": 84.21257914320348,
+          "elapsed_ms": 3247.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 91,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1151.7,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 92,
+          "kind": "embedding",
+          "elapsed_ms": 92.4,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 497.86,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 93,
+          "kind": "rerank",
+          "elapsed_ms": 2129.7,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2854.38,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 94,
+          "kind": "rerank",
+          "elapsed_ms": 694.2,
+          "input_items": null,
+          "input_chars": 3356,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 1935,
+          "tokens_per_item": [
+            197,
+            112,
+            327,
+            116,
+            113,
+            142,
+            133,
+            110,
+            110,
+            112,
+            121,
+            112,
+            124,
+            106
+          ],
+          "input_tps": 2787.53,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 92.4,
+      "rerank_ms": 2823.9,
+      "embedding_input_items": 3,
+      "rerank_candidates": 28,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 8014,
+      "final_input_tokens": 1462,
+      "final_output_tokens": 191,
+      "all_llm_input_tokens": 2131,
+      "all_llm_output_tokens": 245,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 5,
+      "question": "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+      "ttft_ms": 5670.1,
+      "total_ms": 7830.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "根据上下文信息，Inbound Route 指向 Call Queue 后，来电分配策略包括：\n\n*   **Ring All**：Ring all available Agents simultaneously until one answers.\n*   **Linear**：Ring agents in the specified order.\n*   **Least Recent**：Ring the agent who has been called the least recently.\n*   **Fewest Calls**：Ring the agent with the fewest completed calls.\n*   **Random**：Ring a random agent.\n*   **Round Robin**：Ring the agents in Round Robin scheduling with memory.\n\n**例外**：默认设置是“Ring All”。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md · 3 处命中](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view?hits=doc-787f025f589fc681cd398e2fe9683200-chunk-481,doc-787f025f589fc681cd398e2fe9683200-chunk-485#cited-passage)",
+      "reference_count": 3,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 100,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1462,
+          "output_tokens": 191,
+          "total_tokens": 1653,
+          "prompt_ms": 945.605,
+          "predicted_ms": 2259.674,
+          "decode_tps": 84.08292523611813,
+          "elapsed_ms": 3288.5,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 96,
+          "kind": "llm",
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 669,
+          "output_tokens": 54,
+          "total_tokens": 723,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1145.7,
+          "finish_reason": "stop"
+        }
+      ],
+      "embedding_calls": [
+        {
+          "sequence": 97,
+          "kind": "embedding",
+          "elapsed_ms": 94.6,
+          "input_items": 3,
+          "input_chars": 157,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 46,
+          "tokens_per_item": [
+            20,
+            13,
+            13
+          ],
+          "input_tps": 486.27,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 98,
+          "kind": "rerank",
+          "elapsed_ms": 2129.8,
+          "input_items": null,
+          "input_chars": 21166,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 6079,
+          "tokens_per_item": [
+            275,
+            276,
+            676,
+            267,
+            558,
+            418,
+            217,
+            248,
+            277,
+            1096,
+            333,
+            550,
+            321,
+            567
+          ],
+          "input_tps": 2854.2,
+          "token_note": "native_prefill_tokens"
+        },
+        {
+          "sequence": 99,
+          "kind": "rerank",
+          "elapsed_ms": 706.7,
+          "input_items": null,
+          "input_chars": 3356,
+          "candidate_count": 14,
+          "query_chars": 48,
+          "vector_dimensions": null,
+          "input_tokens": 1935,
+          "tokens_per_item": [
+            197,
+            112,
+            327,
+            116,
+            113,
+            142,
+            133,
+            110,
+            110,
+            112,
+            121,
+            112,
+            124,
+            106
+          ],
+          "input_tps": 2738.12,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 2,
+      "embedding_ms": 94.6,
+      "rerank_ms": 2836.5,
+      "embedding_input_items": 3,
+      "rerank_candidates": 28,
+      "embedding_input_tokens": 46,
+      "rerank_input_tokens": 8014,
+      "final_input_tokens": 1462,
+      "final_output_tokens": 191,
+      "all_llm_input_tokens": 2131,
+      "all_llm_output_tokens": 245,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-24T10:05:54.069823+08:00",
+  "summary": {
+    "requested": 5,
+    "successful": 5,
+    "errors": 0,
+    "single_client_queries_per_minute": 7.69,
+    "ttft_ms": {
+      "count": 5,
+      "median": 5641.3,
+      "p95": 5670.1,
+      "min": 5597.0,
+      "max": 5670.1
+    },
+    "total_ms": {
+      "count": 5,
+      "median": 7804.0,
+      "p95": 7830.2,
+      "min": 7756.0,
+      "max": 7830.2
+    },
+    "final_input_tokens": {
+      "count": 5,
+      "median": 1462,
+      "p95": 1462,
+      "min": 1462,
+      "max": 1462
+    },
+    "final_output_tokens": {
+      "count": 5,
+      "median": 191,
+      "p95": 191,
+      "min": 191,
+      "max": 191
+    },
+    "all_llm_input_tokens": {
+      "count": 5,
+      "median": 2131,
+      "p95": 2131,
+      "min": 2131,
+      "max": 2131
+    },
+    "all_llm_output_tokens": {
+      "count": 5,
+      "median": 245,
+      "p95": 245,
+      "min": 245,
+      "max": 245
+    },
+    "embedding_ms": {
+      "count": 5,
+      "median": 91.5,
+      "p95": 94.6,
+      "min": 86.1,
+      "max": 94.6
+    },
+    "rerank_ms": {
+      "count": 5,
+      "median": 2826.0,
+      "p95": 2844.7,
+      "min": 2794.7,
+      "max": 2844.7
+    },
+    "embedding_input_tokens": {
+      "count": 5,
+      "median": 46,
+      "p95": 46,
+      "min": 46,
+      "max": 46
+    },
+    "rerank_input_tokens": {
+      "count": 5,
+      "median": 8014,
+      "p95": 8014,
+      "min": 8014,
+      "max": 8014
+    },
+    "embedding_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 5,
+      "median": 2,
+      "p95": 2,
+      "min": 2,
+      "max": 2
+    },
+    "rerank_candidates": {
+      "count": 5,
+      "median": 28,
+      "p95": 28,
+      "min": 28,
+      "max": 28
+    },
+    "native_usage_available": 5,
+    "no_model_call": 0
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "started_at": "2026-04-27T20:17:36.288738+00:00",
+  "conditions": {
+    "url": "http://127.0.0.1:9621",
+    "gateway_url": "http://127.0.0.1:8100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "FT02"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage. Vector daemons do not expose token counts; call size is reported as items, characters, and rerank candidates."
+  },
+  "results": [
+    {
+      "case_id": "FT02",
+      "repetition": 1,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 2266.4,
+      "total_ms": 3455.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因如下：\n1. 当设备未通过 `date` 命令验证时，系统会返回错误，因为该命令用于确认设备是否支持本地功能。\n2. 若设备不支持 USB 2.0 或 USB 3.0，测试将直接返回错误，因为此类设备无法通过标准 USB 接口通信。\n3. 若 `date` 命令输出不包含 `local` 信息，测试将重试失败并返回错误，因为该命令是验证设备本地功能的关键步骤。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 3,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1188,
+          "output_tokens": 117,
+          "total_tokens": 1305,
+          "prompt_ms": 800.272,
+          "predicted_ms": 1360.0,
+          "decode_tps": 85.29411764705883,
+          "elapsed_ms": 2420.9,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 1,
+          "kind": "embedding",
+          "elapsed_ms": 102.8,
+          "input_items": 3,
+          "input_chars": 48,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": null,
+          "token_note": "native_vector_daemon_does_not_return_token_count"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 2,
+          "kind": "rerank",
+          "elapsed_ms": 727.4,
+          "input_items": null,
+          "input_chars": 3455,
+          "candidate_count": 6,
+          "query_chars": 18,
+          "vector_dimensions": null,
+          "input_tokens": null,
+          "token_note": "native_vector_daemon_does_not_return_token_count"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 102.8,
+      "rerank_ms": 727.4,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "final_input_tokens": 1188,
+      "final_output_tokens": 117,
+      "all_llm_input_tokens": 1188,
+      "all_llm_output_tokens": 117,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-04-27T20:17:39.752822+00:00",
+  "summary": {
+    "requested": 1,
+    "successful": 1,
+    "errors": 0,
+    "single_client_queries_per_minute": 17.32,
+    "ttft_ms": {
+      "count": 1,
+      "median": 2266.4,
+      "p95": 2266.4,
+      "min": 2266.4,
+      "max": 2266.4
+    },
+    "total_ms": {
+      "count": 1,
+      "median": 3455.8,
+      "p95": 3455.8,
+      "min": 3455.8,
+      "max": 3455.8
+    },
+    "final_input_tokens": {
+      "count": 1,
+      "median": 1188,
+      "p95": 1188,
+      "min": 1188,
+      "max": 1188
+    },
+    "final_output_tokens": {
+      "count": 1,
+      "median": 117,
+      "p95": 117,
+      "min": 117,
+      "max": 117
+    },
+    "all_llm_input_tokens": {
+      "count": 1,
+      "median": 1188,
+      "p95": 1188,
+      "min": 1188,
+      "max": 1188
+    },
+    "all_llm_output_tokens": {
+      "count": 1,
+      "median": 117,
+      "p95": 117,
+      "min": 117,
+      "max": 117
+    },
+    "embedding_ms": {
+      "count": 1,
+      "median": 102.8,
+      "p95": 102.8,
+      "min": 102.8,
+      "max": 102.8
+    },
+    "rerank_ms": {
+      "count": 1,
+      "median": 727.4,
+      "p95": 727.4,
+      "min": 727.4,
+      "max": 727.4
+    },
+    "embedding_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 1,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 1,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 1,
+    "no_model_call": 0
+  }
+}

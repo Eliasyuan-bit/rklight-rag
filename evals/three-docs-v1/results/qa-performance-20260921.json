@@ -1,0 +1,380 @@
+{
+  "started_at": "2026-04-27T20:11:13.844469+00:00",
+  "conditions": {
+    "url": "http://127.0.0.1:9621",
+    "gateway_url": "http://127.0.0.1:8100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "FT02",
+      "FT11",
+      "BURN01",
+      "BURN08",
+      "BURN11",
+      "SDK08",
+      "SDK09",
+      "SDK16",
+      "SDK22"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native model usage; final answer and auxiliary LLM calls separated."
+  },
+  "results": [
+    {
+      "case_id": "FT02",
+      "repetition": 1,
+      "question": "FT 测试中 USB 错误是为什么？",
+      "ttft_ms": 3529.1,
+      "total_ms": 4731.5,
+      "http_status": 200,
+      "error": null,
+      "answer": "FT 测试中 USB 错误的原因如下：\n1. 当设备未通过 `date` 命令验证时，系统会返回错误，因为该命令用于确认设备是否支持本地功能。\n2. 若设备不支持 USB 2.0 或 USB 3.0，测试将直接返回错误，因为此类设备无法通过标准 USB 接口通信。\n3. 若 `date` 命令输出不包含 `local` 信息，测试将重试失败并返回错误，因为该命令是验证设备本地功能的关键步骤。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 1,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1188,
+          "output_tokens": 117,
+          "total_tokens": 1305,
+          "prompt_ms": 915.873,
+          "predicted_ms": 1384.259,
+          "decode_tps": 83.79934679853986,
+          "elapsed_ms": 2562.0,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1188,
+      "final_output_tokens": 117,
+      "all_llm_input_tokens": 1188,
+      "all_llm_output_tokens": 117,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "FT11",
+      "repetition": 1,
+      "question": "IS6608A 和 MPQ8655 的 12V 复位电流基准各是多少，容差是多少？",
+      "ttft_ms": 3642.9,
+      "total_ms": 4372.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "IS6608A 的 12V 复位电流基准为 86mA，容差为+- 20%；MPQ8655 的 12V 复位电流基准为 79mA，容差为+- 20%。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.text — 行：MPQ8655](/query/references/tb-8e8ba685b5d7b86327a3469b43d66a6d-0004/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 2,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1037,
+          "output_tokens": 83,
+          "total_tokens": 1120,
+          "prompt_ms": 715.08,
+          "predicted_ms": 958.041,
+          "decode_tps": 85.59132646723887,
+          "elapsed_ms": 1723.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1037,
+      "final_output_tokens": 83,
+      "all_llm_input_tokens": 1037,
+      "all_llm_output_tokens": 83,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "BURN01",
+      "repetition": 1,
+      "question": "怎么查看 burn_stress 版本，文档对应的版本输出是什么？",
+      "ttft_ms": 3311.5,
+      "total_ms": 3527.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "```\nburn_stress -V\n```\n版本输出：V1.0.4_20260806\n\n### References\n\n- [\\[1\\] burn_stress使用说明_1.0.4.md — burn_stress 使用说明](/query/references/doc-801e3da4f831058a4a8d9404054cd08f-chunk-001/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 3,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1071,
+          "output_tokens": 29,
+          "total_tokens": 1100,
+          "prompt_ms": 717.062,
+          "predicted_ms": 327.056,
+          "decode_tps": 85.61224988992711,
+          "elapsed_ms": 1123.9,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1071,
+      "final_output_tokens": 29,
+      "all_llm_input_tokens": 1071,
+      "all_llm_output_tokens": 29,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "BURN08",
+      "repetition": 1,
+      "question": "如何让 NPU 使用自动频率切换，切换顺序是什么？",
+      "ttft_ms": 3672.1,
+      "total_ms": 4582.4,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 运行命令 `burn_stress -n 1 -m 0` 以启动自动频率切换功能。\n2. 观察设备在 1000 MHz 至 500 MHz 至 850 MHz 的频率序列中自动切换。\n3. 确认切换顺序为 1000 MHz → 500 MHz → 850 MHz。\n\n### References\n\n- [\\[1\\] burn_stress使用说明_1.0.4.md — burn_stress 使用说明](/query/references/doc-801e3da4f831058a4a8d9404054cd08f-chunk-001/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 4,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1807,
+          "output_tokens": 88,
+          "total_tokens": 1895,
+          "prompt_ms": 1224.078,
+          "predicted_ms": 1048.078,
+          "decode_tps": 83.00908901818377,
+          "elapsed_ms": 2322.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1807,
+      "final_output_tokens": 88,
+      "all_llm_input_tokens": 1807,
+      "all_llm_output_tokens": 88,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "BURN11",
+      "repetition": 1,
+      "question": "850MHz 时 RK1820 和 RK1828 的 NPU Prefill、Decode 和单 loop 估算分别是多少？",
+      "ttft_ms": 4778.4,
+      "total_ms": 4781.3,
+      "http_status": 200,
+      "error": null,
+      "answer": "无法确认。\n\n### References\n\n- [\\[1\\] burn_stress使用说明_1.0.4.md — burn_stress 使用说明](/query/references/doc-801e3da4f831058a4a8d9404054cd08f-chunk-001/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 5,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1873,
+          "output_tokens": 4,
+          "total_tokens": 1877,
+          "prompt_ms": 1211.318,
+          "predicted_ms": 36.384,
+          "decode_tps": 82.45382585751979,
+          "elapsed_ms": 1302.4,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1873,
+      "final_output_tokens": 4,
+      "all_llm_input_tokens": 1873,
+      "all_llm_output_tokens": 4,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "SDK08",
+      "repetition": 1,
+      "question": "Qwen2.5-7B 在 RK1828 上的性能数据是多少？",
+      "ttft_ms": 2010.4,
+      "total_ms": 3060.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "Qwen2.5-7B 在 RK1828 上的性能数据如下：\n- 模型名称：Qwen2.5-7B\n- 加速器：RK1828\n- 输入 Token 数：128\n- 新 Token 数：128\n- TTFT (ms)：162.25\n- TPOT (ms)：14.19\n- Decode TPS：70.47\n\n### References\n\n- [\\[1\\] 00_Rockchip_RKNPU3_ReleaseNote_RKNN3_SDK_V1.0.4_EN.pdf — 表格：LLM Model Performance；行：Qwen2.5-7B](/query/references/doc-2a28a8d3a5aa3d520b611eb43916f518-chunk-004-table-00/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 6,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1996,
+          "output_tokens": 105,
+          "total_tokens": 2101,
+          "prompt_ms": 1286.091,
+          "predicted_ms": 1263.122,
+          "decode_tps": 82.33567303870885,
+          "elapsed_ms": 2640.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1996,
+      "final_output_tokens": 105,
+      "all_llm_input_tokens": 1996,
+      "all_llm_output_tokens": 105,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "SDK09",
+      "repetition": 1,
+      "question": "Qwen3-4B 在 RK1828 上的 LLM 性能数据是多少？",
+      "ttft_ms": 424.6,
+      "total_ms": 425.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "Qwen3-4B 在 RK1828 上的 LLM 性能数据如下：\n- TTFT (ms): 109.78\n- TPOT (ms): 11.30\n- Decode TPS: 88.47\n\n### References\n\n- [\\[1\\] 00_Rockchip_RKNPU3_ReleaseNote_RKNN3_SDK_V1.0.4_EN.pdf — 表格：LLM Model Performance；行：Qwen3-4B](/query/references/doc-2a28a8d3a5aa3d520b611eb43916f518-chunk-004-table-00/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 0,
+      "final_calls": [],
+      "auxiliary_calls": [],
+      "final_input_tokens": null,
+      "final_output_tokens": null,
+      "all_llm_input_tokens": null,
+      "all_llm_output_tokens": null,
+      "usage_note": "no_model_call"
+    },
+    {
+      "case_id": "SDK16",
+      "repetition": 1,
+      "question": "Qwen3-4B 在 gsm8k 上的原始 float32 精度和 RKNN3 W4A16 G32 精度是多少？",
+      "ttft_ms": 2175.2,
+      "total_ms": 3001.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "Qwen3-4B 在 gsm8k 上的原始 float32 精度为 90.6，在 RKNN3 W4A16 G32 下的精度为 89.84。\n\n### References\n\n- [\\[1\\] 00_Rockchip_RKNPU3_ReleaseNote_RKNN3_SDK_V1.0.4_EN.pdf — 表格：LLM Model Performance；行：Qwen3-4B](/query/references/doc-2a28a8d3a5aa3d520b611eb43916f518-chunk-005-table-00/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 7,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1996,
+          "output_tokens": 84,
+          "total_tokens": 2080,
+          "prompt_ms": 1272.845,
+          "predicted_ms": 1006.255,
+          "decode_tps": 82.48406219099532,
+          "elapsed_ms": 2360.8,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1996,
+      "final_output_tokens": 84,
+      "all_llm_input_tokens": 1996,
+      "all_llm_output_tokens": 84,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "SDK22",
+      "repetition": 1,
+      "question": "转换 Qwen2.5-7B 推荐什么服务器配置，预计多久？",
+      "ttft_ms": 1600.1,
+      "total_ms": 2327.8,
+      "http_status": 200,
+      "error": null,
+      "answer": "Qwen 2.5-7B 推荐配置：\n- CPU：32-core\n- RAM：64 GB\n- SSD：1 TB\n- 预计时间：~105 分钟\n\n### References\n\n- [\\[1\\] 00_Rockchip_RKNPU3_ReleaseNote_RKNN3_SDK_V1.0.4_EN.pdf — 表格：LLM Model Performance；行：Qwen 2.5 7B](/query/references/doc-2a28a8d3a5aa3d520b611eb43916f518-chunk-006-table-01/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 8,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1170,
+          "output_tokens": 79,
+          "total_tokens": 1249,
+          "prompt_ms": 793.691,
+          "predicted_ms": 922.604,
+          "decode_tps": 84.54331435805611,
+          "elapsed_ms": 1796.8,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "final_input_tokens": 1170,
+      "final_output_tokens": 79,
+      "all_llm_input_tokens": 1170,
+      "all_llm_output_tokens": 79,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-04-27T20:11:44.717019+00:00",
+  "summary": {
+    "requested": 9,
+    "successful": 9,
+    "errors": 0,
+    "single_client_queries_per_minute": 17.49,
+    "ttft_ms": {
+      "count": 9,
+      "median": 3311.5,
+      "p95": 4778.4,
+      "min": 424.6,
+      "max": 4778.4
+    },
+    "total_ms": {
+      "count": 9,
+      "median": 3527.2,
+      "p95": 4781.3,
+      "min": 425.0,
+      "max": 4781.3
+    },
+    "final_input_tokens": {
+      "count": 8,
+      "median": 1497.5,
+      "p95": 1996,
+      "min": 1037,
+      "max": 1996
+    },
+    "final_output_tokens": {
+      "count": 8,
+      "median": 83.5,
+      "p95": 117,
+      "min": 4,
+      "max": 117
+    },
+    "all_llm_input_tokens": {
+      "count": 8,
+      "median": 1497.5,
+      "p95": 1996,
+      "min": 1037,
+      "max": 1996
+    },
+    "all_llm_output_tokens": {
+      "count": 8,
+      "median": 83.5,
+      "p95": 117,
+      "min": 4,
+      "max": 117
+    },
+    "native_usage_available": 8,
+    "no_model_call": 1
+  }
+}

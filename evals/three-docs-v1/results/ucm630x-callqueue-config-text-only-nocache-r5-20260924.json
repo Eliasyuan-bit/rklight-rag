@@ -1,0 +1,550 @@
+{
+  "started_at": "2026-09-24T10:15:37.416295+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 5,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "naive",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2111.8,
+      "total_ms": 3154.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，或点击“Edit”编辑现有呼叫队列。\n3. 点击“Delete”删除呼叫队列。\n4. 在配置参数表中，设置 Extension 号、Name 和 Strategy。\n5. 选择 Ring All、Linear、Least Recent、Fewest Calls 或 Random 等策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 122,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1233,
+          "output_tokens": 98,
+          "total_tokens": 1331,
+          "prompt_ms": 789.049,
+          "predicted_ms": 1144.154,
+          "decode_tps": 84.77879725980942,
+          "elapsed_ms": 2018.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 120,
+          "kind": "embedding",
+          "elapsed_ms": 30.2,
+          "input_items": 1,
+          "input_chars": 12,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 8,
+          "tokens_per_item": [
+            8
+          ],
+          "input_tps": 264.7,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 121,
+          "kind": "rerank",
+          "elapsed_ms": 793.2,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2758.3,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.2,
+      "rerank_ms": 793.2,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 8,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1233,
+      "final_output_tokens": 98,
+      "all_llm_input_tokens": 1233,
+      "all_llm_output_tokens": 98,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 1992.8,
+      "total_ms": 3027.9,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，或点击“Edit”编辑现有呼叫队列。\n3. 点击“Delete”删除呼叫队列。\n4. 在配置参数表中，设置 Extension 号、Name 和 Strategy。\n5. 选择 Ring All、Linear、Least Recent、Fewest Calls 或 Random 等策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 125,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1233,
+          "output_tokens": 98,
+          "total_tokens": 1331,
+          "prompt_ms": 785.184,
+          "predicted_ms": 1136.001,
+          "decode_tps": 85.3872487788303,
+          "elapsed_ms": 1967.0,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 123,
+          "kind": "embedding",
+          "elapsed_ms": 29.6,
+          "input_items": 1,
+          "input_chars": 12,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 8,
+          "tokens_per_item": [
+            8
+          ],
+          "input_tps": 270.35,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 124,
+          "kind": "rerank",
+          "elapsed_ms": 781.4,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2800.16,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 29.6,
+      "rerank_ms": 781.4,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 8,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1233,
+      "final_output_tokens": 98,
+      "all_llm_input_tokens": 1233,
+      "all_llm_output_tokens": 98,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 1992.5,
+      "total_ms": 3036.6,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，或点击“Edit”编辑现有呼叫队列。\n3. 点击“Delete”删除呼叫队列。\n4. 在配置参数表中，设置 Extension 号、Name 和 Strategy。\n5. 选择 Ring All、Linear、Least Recent、Fewest Calls 或 Random 等策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 128,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1233,
+          "output_tokens": 98,
+          "total_tokens": 1331,
+          "prompt_ms": 782.697,
+          "predicted_ms": 1142.031,
+          "decode_tps": 84.93639839899268,
+          "elapsed_ms": 1967.4,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 126,
+          "kind": "embedding",
+          "elapsed_ms": 30.1,
+          "input_items": 1,
+          "input_chars": 12,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 8,
+          "tokens_per_item": [
+            8
+          ],
+          "input_tps": 265.56,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 127,
+          "kind": "rerank",
+          "elapsed_ms": 769.0,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2845.28,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 30.1,
+      "rerank_ms": 769.0,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 8,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1233,
+      "final_output_tokens": 98,
+      "all_llm_input_tokens": 1233,
+      "all_llm_output_tokens": 98,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 4,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2006.0,
+      "total_ms": 3046.4,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，或点击“Edit”编辑现有呼叫队列。\n3. 点击“Delete”删除呼叫队列。\n4. 在配置参数表中，设置 Extension 号、Name 和 Strategy。\n5. 选择 Ring All、Linear、Least Recent、Fewest Calls 或 Random 等策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 131,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1233,
+          "output_tokens": 98,
+          "total_tokens": 1331,
+          "prompt_ms": 786.757,
+          "predicted_ms": 1138.218,
+          "decode_tps": 85.22093307257485,
+          "elapsed_ms": 1984.8,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 129,
+          "kind": "embedding",
+          "elapsed_ms": 36.0,
+          "input_items": 1,
+          "input_chars": 12,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 8,
+          "tokens_per_item": [
+            8
+          ],
+          "input_tps": 222.19,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 130,
+          "kind": "rerank",
+          "elapsed_ms": 774.9,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2823.58,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 36.0,
+      "rerank_ms": 774.9,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 8,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1233,
+      "final_output_tokens": 98,
+      "all_llm_input_tokens": 1233,
+      "all_llm_output_tokens": 98,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 5,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2009.7,
+      "total_ms": 3052.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，或点击“Edit”编辑现有呼叫队列。\n3. 点击“Delete”删除呼叫队列。\n4. 在配置参数表中，设置 Extension 号、Name 和 Strategy。\n5. 选择 Ring All、Linear、Least Recent、Fewest Calls 或 Random 等策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 134,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1233,
+          "output_tokens": 98,
+          "total_tokens": 1331,
+          "prompt_ms": 779.898,
+          "predicted_ms": 1144.378,
+          "decode_tps": 84.76220269875863,
+          "elapsed_ms": 2001.7,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 132,
+          "kind": "embedding",
+          "elapsed_ms": 29.6,
+          "input_items": 1,
+          "input_chars": 12,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 8,
+          "tokens_per_item": [
+            8
+          ],
+          "input_tps": 270.51,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 133,
+          "kind": "rerank",
+          "elapsed_ms": 778.4,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2810.73,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 29.6,
+      "rerank_ms": 778.4,
+      "embedding_input_items": 1,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 8,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1233,
+      "final_output_tokens": 98,
+      "all_llm_input_tokens": 1233,
+      "all_llm_output_tokens": 98,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-24T10:15:52.815177+08:00",
+  "summary": {
+    "requested": 5,
+    "successful": 5,
+    "errors": 0,
+    "single_client_queries_per_minute": 19.48,
+    "ttft_ms": {
+      "count": 5,
+      "median": 2006.0,
+      "p95": 2111.8,
+      "min": 1992.5,
+      "max": 2111.8
+    },
+    "total_ms": {
+      "count": 5,
+      "median": 3046.4,
+      "p95": 3154.9,
+      "min": 3027.9,
+      "max": 3154.9
+    },
+    "final_input_tokens": {
+      "count": 5,
+      "median": 1233,
+      "p95": 1233,
+      "min": 1233,
+      "max": 1233
+    },
+    "final_output_tokens": {
+      "count": 5,
+      "median": 98,
+      "p95": 98,
+      "min": 98,
+      "max": 98
+    },
+    "all_llm_input_tokens": {
+      "count": 5,
+      "median": 1233,
+      "p95": 1233,
+      "min": 1233,
+      "max": 1233
+    },
+    "all_llm_output_tokens": {
+      "count": 5,
+      "median": 98,
+      "p95": 98,
+      "min": 98,
+      "max": 98
+    },
+    "embedding_ms": {
+      "count": 5,
+      "median": 30.1,
+      "p95": 36.0,
+      "min": 29.6,
+      "max": 36.0
+    },
+    "rerank_ms": {
+      "count": 5,
+      "median": 778.4,
+      "p95": 793.2,
+      "min": 769.0,
+      "max": 793.2
+    },
+    "embedding_input_tokens": {
+      "count": 5,
+      "median": 8,
+      "p95": 8,
+      "min": 8,
+      "max": 8
+    },
+    "rerank_input_tokens": {
+      "count": 5,
+      "median": 2188,
+      "p95": 2188,
+      "min": 2188,
+      "max": 2188
+    },
+    "embedding_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 5,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 5,
+    "no_model_call": 0
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "started_at": "2026-04-27T20:13:15.887837+00:00",
+  "conditions": {
+    "url": "http://127.0.0.1:9621",
+    "gateway_url": "http://127.0.0.1:8100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 1,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": []
+    },
+    "token_definition": "Native model usage; final answer and auxiliary LLM calls separated."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "针对 RM182xMC0 的 USB 自动测试，请按设备枚举、速率检查和 ADB date 校验的顺序，列出每一步可能返回 USB 错误的条件。",
+      "ttft_ms": 3740.8,
+      "total_ms": 5643.6,
+      "http_status": 200,
+      "error": null,
+      "answer": "### 针对 RM182xMC0 的 USB 自动测试错误条件\n\n1. **设备枚举阶段**\n   - 若 `product` 不等于 `CherryUSB ADB`，返回错误。\n   - 若 `product` 为 `CherryUSB ADB`，继续执行。\n\n2. **速率检查阶段**\n   - 若 `USB2.0` 或 `USB3.0` 不成立，返回错误。\n   - 若 `USB2.0` 或 `USB3.0` 成立，继续执行。\n\n3. **ADB date 校验阶段**\n   - 若 `date` 命令输出不包含 `local`，返回错误。\n   - 若 `date` 命令输出包含 `local`，返回成功。\n\n### References\n\n- [\\[1\\] RM182xMC0模组测试软件说明.md — M2-2280自动测试流程](/query/references/doc-8e8ba685b5d7b86327a3469b43d66a6d-chunk-005/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 2,
+      "final_calls": [
+        {
+          "sequence": 10,
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1192,
+          "output_tokens": 176,
+          "total_tokens": 1368,
+          "prompt_ms": 787.241,
+          "predicted_ms": 2063.454,
+          "decode_tps": 84.8092567122892,
+          "elapsed_ms": 2904.7,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [
+        {
+          "sequence": 9,
+          "model": "qwen3.5-2b",
+          "stream": false,
+          "source": "native",
+          "input_tokens": 690,
+          "output_tokens": 67,
+          "total_tokens": 757,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 1358.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "final_input_tokens": 1192,
+      "final_output_tokens": 176,
+      "all_llm_input_tokens": 1882,
+      "all_llm_output_tokens": 243,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-04-27T20:13:21.540670+00:00",
+  "summary": {
+    "requested": 1,
+    "successful": 1,
+    "errors": 0,
+    "single_client_queries_per_minute": 10.61,
+    "ttft_ms": {
+      "count": 1,
+      "median": 3740.8,
+      "p95": 3740.8,
+      "min": 3740.8,
+      "max": 3740.8
+    },
+    "total_ms": {
+      "count": 1,
+      "median": 5643.6,
+      "p95": 5643.6,
+      "min": 5643.6,
+      "max": 5643.6
+    },
+    "final_input_tokens": {
+      "count": 1,
+      "median": 1192,
+      "p95": 1192,
+      "min": 1192,
+      "max": 1192
+    },
+    "final_output_tokens": {
+      "count": 1,
+      "median": 176,
+      "p95": 176,
+      "min": 176,
+      "max": 176
+    },
+    "all_llm_input_tokens": {
+      "count": 1,
+      "median": 1882,
+      "p95": 1882,
+      "min": 1882,
+      "max": 1882
+    },
+    "all_llm_output_tokens": {
+      "count": 1,
+      "median": 243,
+      "p95": 243,
+      "min": 243,
+      "max": 243
+    },
+    "native_usage_available": 1,
+    "no_model_call": 0
+  }
+}

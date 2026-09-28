@@ -1,0 +1,22 @@
+{
+  "question": "FT 测试中 USB 错误是为什么？",
+  "definition": "板端 LightRAG 重启后排除首条请求；同一问题，单客户端流式请求，Rerank 开启。以下记录以客户端单调时钟计算 TTFT/总耗时，阶段耗时来自模型网关。",
+  "cache_note": "Mix 的关键词理解命中缓存，0 次关键词 LLM 调用；Naive 后续请求的 Rerank 耗时约 43 ms，低于首轮约 222 ms。此数据是当前缓存状态下的稳定态，不是无缓存完整路径。",
+  "naive": [
+    {"run": 2, "ttft_ms": 1381.2, "total_ms": 2843.9, "embedding_ms": 27.0, "rerank_ms": 42.5, "answer_llm_ms": 2653.3},
+    {"run": 3, "ttft_ms": 1456.0, "total_ms": 2915.8, "embedding_ms": 27.0, "rerank_ms": 42.7, "answer_llm_ms": 2686.5},
+    {"run": 4, "ttft_ms": 1380.8, "total_ms": 2840.3, "embedding_ms": 25.7, "rerank_ms": 42.8, "answer_llm_ms": 2652.9},
+    {"run": 5, "ttft_ms": 1410.8, "total_ms": 2874.2, "embedding_ms": 27.0, "rerank_ms": 42.8, "answer_llm_ms": 2651.5}
+  ],
+  "mix": [
+    {"run": 1, "ttft_ms": 1927.7, "total_ms": 3072.2, "embedding_ms": 80.0, "rerank_ms": 682.0, "answer_llm_ms": 2110.8},
+    {"run": 2, "ttft_ms": 1893.5, "total_ms": 3037.5, "embedding_ms": 80.0, "rerank_ms": 681.9, "answer_llm_ms": 2108.9},
+    {"run": 3, "ttft_ms": 1912.4, "total_ms": 3058.5, "embedding_ms": 76.3, "rerank_ms": 680.1, "answer_llm_ms": 2143.9},
+    {"run": 4, "ttft_ms": 1911.4, "total_ms": 3058.3, "embedding_ms": 76.4, "rerank_ms": 680.6, "answer_llm_ms": 2140.1},
+    {"run": 5, "ttft_ms": 1947.5, "total_ms": 3091.3, "embedding_ms": 76.3, "rerank_ms": 680.1, "answer_llm_ms": 2139.3}
+  ],
+  "workload": {
+    "naive": {"keyword_llm_calls": 0, "embedding_items": 1, "embedding_input_tokens": 12, "rerank_candidates": 1, "rerank_input_tokens": 762, "answer_llm_input_tokens": 1613, "answer_llm_output_tokens": 142},
+    "mix": {"keyword_llm_calls": 0, "embedding_items": 3, "embedding_input_tokens": 34, "rerank_candidates": 6, "rerank_input_tokens": 2340, "answer_llm_input_tokens": 1188, "answer_llm_output_tokens": 117}
+  }
+}

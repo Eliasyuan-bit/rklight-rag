@@ -1,0 +1,561 @@
+{
+  "started_at": "2026-09-23T16:34:49.678755+08:00",
+  "conditions": {
+    "url": "http://127.0.0.1:19621",
+    "gateway_url": "http://127.0.0.1:18100",
+    "query_model": "qwen3.5-2b-query",
+    "concurrency": 1,
+    "repeat": 5,
+    "case_ids": [
+      "CUSTOM"
+    ],
+    "query_config": {
+      "mode": "mix",
+      "stream": true,
+      "include_references": true,
+      "include_chunk_content": true,
+      "include_progress": true,
+      "enable_rerank": true,
+      "top_k": 6,
+      "chunk_top_k": 3,
+      "max_entity_tokens": 500,
+      "max_relation_tokens": 300,
+      "max_total_tokens": 3000,
+      "conversation_history": [],
+      "user_prompt": "只根据给定上下文直接回答。若上下文仅列出部分型号或项目，应完整回答已列出的结果，不要因无法确认未列出的内容而拒答。只回答问题直接要求的字段，禁止补充准确率等未询问指标。答案保持简洁完整。"
+    },
+    "token_definition": "Native LLM usage and RKNN3 n_prefill_tokens for vector models; items, characters, and candidate counts are retained as workload dimensions."
+  },
+  "results": [
+    {
+      "case_id": "CUSTOM",
+      "repetition": 1,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 1190.6,
+      "total_ms": 1191.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 57,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null,
+          "prompt_ms": null,
+          "predicted_ms": null,
+          "decode_tps": null,
+          "elapsed_ms": 83.9,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 55,
+          "kind": "embedding",
+          "elapsed_ms": 91.7,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 348.87,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 56,
+          "kind": "rerank",
+          "elapsed_ms": 787.0,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2780.25,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 91.7,
+      "rerank_ms": 787.0,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": null,
+      "final_output_tokens": null,
+      "all_llm_input_tokens": null,
+      "all_llm_output_tokens": null,
+      "usage_note": "native_usage_missing"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 2,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2073.2,
+      "total_ms": 3174.2,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，点击“Edit”编辑呼叫队列。\n3. 在呼叫队列配置参数表中，将 Extension 设置为呼叫队列的扩展号码。\n4. 在呼叫队列配置参数表中，将 Name 设置为呼叫队列的名称。\n5. 在呼叫队列配置参数表中，将 Strategy 设置为呼叫队列的呼叫策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 60,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1246,
+          "output_tokens": 103,
+          "total_tokens": 1349,
+          "prompt_ms": 792.961,
+          "predicted_ms": 1201.663,
+          "decode_tps": 84.88236718614121,
+          "elapsed_ms": 2046.3,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 58,
+          "kind": "embedding",
+          "elapsed_ms": 91.1,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 351.22,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 59,
+          "kind": "rerank",
+          "elapsed_ms": 786.4,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2782.3,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 91.1,
+      "rerank_ms": 786.4,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1246,
+      "final_output_tokens": 103,
+      "all_llm_input_tokens": 1246,
+      "all_llm_output_tokens": 103,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 3,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2125.8,
+      "total_ms": 3231.3,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，点击“Edit”编辑呼叫队列。\n3. 在呼叫队列配置参数表中，将 Extension 设置为呼叫队列的扩展号码。\n4. 在呼叫队列配置参数表中，将 Name 设置为呼叫队列的名称。\n5. 在呼叫队列配置参数表中，将 Strategy 设置为呼叫队列的呼叫策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 63,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1246,
+          "output_tokens": 103,
+          "total_tokens": 1349,
+          "prompt_ms": 783.711,
+          "predicted_ms": 1205.072,
+          "decode_tps": 84.64224544259596,
+          "elapsed_ms": 2072.9,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 61,
+          "kind": "embedding",
+          "elapsed_ms": 87.6,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 365.14,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 62,
+          "kind": "rerank",
+          "elapsed_ms": 781.0,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2801.65,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 87.6,
+      "rerank_ms": 781.0,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1246,
+      "final_output_tokens": 103,
+      "all_llm_input_tokens": 1246,
+      "all_llm_output_tokens": 103,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 4,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2118.8,
+      "total_ms": 3219.6,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，点击“Edit”编辑呼叫队列。\n3. 在呼叫队列配置参数表中，将 Extension 设置为呼叫队列的扩展号码。\n4. 在呼叫队列配置参数表中，将 Name 设置为呼叫队列的名称。\n5. 在呼叫队列配置参数表中，将 Strategy 设置为呼叫队列的呼叫策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 66,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1246,
+          "output_tokens": 103,
+          "total_tokens": 1349,
+          "prompt_ms": 784.107,
+          "predicted_ms": 1200.115,
+          "decode_tps": 84.99185494723422,
+          "elapsed_ms": 2060.2,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 64,
+          "kind": "embedding",
+          "elapsed_ms": 90.9,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 352.05,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 65,
+          "kind": "rerank",
+          "elapsed_ms": 780.5,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2803.43,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 90.9,
+      "rerank_ms": 780.5,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1246,
+      "final_output_tokens": 103,
+      "all_llm_input_tokens": 1246,
+      "all_llm_output_tokens": 103,
+      "usage_note": "native_usage"
+    },
+    {
+      "case_id": "CUSTOM",
+      "repetition": 5,
+      "question": "呼叫队列配置流程是什么？",
+      "ttft_ms": 2085.9,
+      "total_ms": 3180.0,
+      "http_status": 200,
+      "error": null,
+      "answer": "1. 进入 Web GUI 的 Basic Call Features 菜单，点击 Call Queue 选项。\n2. 点击“Add”按钮添加呼叫队列，点击“Edit”编辑呼叫队列。\n3. 在呼叫队列配置参数表中，将 Extension 设置为呼叫队列的扩展号码。\n4. 在呼叫队列配置参数表中，将 Name 设置为呼叫队列的名称。\n5. 在呼叫队列配置参数表中，将 Strategy 设置为呼叫队列的呼叫策略。\n\n### References\n\n- [\\[1\\] UCM630x-Series-User-Manual.md — UCM630x Series User Manual](/query/references/doc-787f025f589fc681cd398e2fe9683200-chunk-220/view#cited-passage)",
+      "reference_count": 1,
+      "model_calls": 1,
+      "final_calls": [
+        {
+          "sequence": 69,
+          "kind": "llm",
+          "model": "qwen3.5-2b-query",
+          "stream": true,
+          "source": "native",
+          "input_tokens": 1246,
+          "output_tokens": 103,
+          "total_tokens": 1349,
+          "prompt_ms": 781.079,
+          "predicted_ms": 1193.462,
+          "decode_tps": 85.4656453242751,
+          "elapsed_ms": 2022.6,
+          "finish_reason": "stop"
+        }
+      ],
+      "auxiliary_calls": [],
+      "embedding_calls": [
+        {
+          "sequence": 67,
+          "kind": "embedding",
+          "elapsed_ms": 95.3,
+          "input_items": 3,
+          "input_chars": 36,
+          "candidate_count": null,
+          "query_chars": null,
+          "vector_dimensions": 1024,
+          "input_tokens": 32,
+          "tokens_per_item": [
+            8,
+            11,
+            13
+          ],
+          "input_tps": 335.95,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "rerank_calls": [
+        {
+          "sequence": 68,
+          "kind": "rerank",
+          "elapsed_ms": 789.0,
+          "input_items": null,
+          "input_chars": 7131,
+          "candidate_count": 6,
+          "query_chars": 12,
+          "vector_dimensions": null,
+          "input_tokens": 2188,
+          "tokens_per_item": [
+            269,
+            189,
+            523,
+            468,
+            260,
+            479
+          ],
+          "input_tps": 2773.28,
+          "token_note": "native_prefill_tokens"
+        }
+      ],
+      "embedding_call_count": 1,
+      "rerank_call_count": 1,
+      "embedding_ms": 95.3,
+      "rerank_ms": 789.0,
+      "embedding_input_items": 3,
+      "rerank_candidates": 6,
+      "embedding_input_tokens": 32,
+      "rerank_input_tokens": 2188,
+      "final_input_tokens": 1246,
+      "final_output_tokens": 103,
+      "all_llm_input_tokens": 1246,
+      "all_llm_output_tokens": 103,
+      "usage_note": "native_usage"
+    }
+  ],
+  "finished_at": "2026-09-23T16:35:03.698471+08:00",
+  "summary": {
+    "requested": 5,
+    "successful": 5,
+    "errors": 0,
+    "single_client_queries_per_minute": 21.4,
+    "ttft_ms": {
+      "count": 5,
+      "median": 2085.9,
+      "p95": 2125.8,
+      "min": 1190.6,
+      "max": 2125.8
+    },
+    "total_ms": {
+      "count": 5,
+      "median": 3180.0,
+      "p95": 3231.3,
+      "min": 1191.0,
+      "max": 3231.3
+    },
+    "final_input_tokens": {
+      "count": 4,
+      "median": 1246.0,
+      "p95": 1246,
+      "min": 1246,
+      "max": 1246
+    },
+    "final_output_tokens": {
+      "count": 4,
+      "median": 103.0,
+      "p95": 103,
+      "min": 103,
+      "max": 103
+    },
+    "all_llm_input_tokens": {
+      "count": 4,
+      "median": 1246.0,
+      "p95": 1246,
+      "min": 1246,
+      "max": 1246
+    },
+    "all_llm_output_tokens": {
+      "count": 4,
+      "median": 103.0,
+      "p95": 103,
+      "min": 103,
+      "max": 103
+    },
+    "embedding_ms": {
+      "count": 5,
+      "median": 91.1,
+      "p95": 95.3,
+      "min": 87.6,
+      "max": 95.3
+    },
+    "rerank_ms": {
+      "count": 5,
+      "median": 786.4,
+      "p95": 789.0,
+      "min": 780.5,
+      "max": 789.0
+    },
+    "embedding_input_tokens": {
+      "count": 5,
+      "median": 32,
+      "p95": 32,
+      "min": 32,
+      "max": 32
+    },
+    "rerank_input_tokens": {
+      "count": 5,
+      "median": 2188,
+      "p95": 2188,
+      "min": 2188,
+      "max": 2188
+    },
+    "embedding_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_call_count": {
+      "count": 5,
+      "median": 1,
+      "p95": 1,
+      "min": 1,
+      "max": 1
+    },
+    "rerank_candidates": {
+      "count": 5,
+      "median": 6,
+      "p95": 6,
+      "min": 6,
+      "max": 6
+    },
+    "native_usage_available": 4,
+    "no_model_call": 0
+  }
+}

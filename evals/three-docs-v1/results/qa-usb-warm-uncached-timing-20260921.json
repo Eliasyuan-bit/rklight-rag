@@ -1,0 +1,121 @@
+{
+  "question": "FT 测试中 USB 错误是为什么？",
+  "definition": "LightRAG 重启后分别以 Naive 和 Mix 预热 1 次，再在 ENABLE_LLM_CACHE=false 的同一服务进程中各运行 5 次；单客户端流式请求、Rerank 开启。TTFT/总耗时为板端客户端单调时钟，阶段为模型网关 elapsed_ms。",
+  "cache_note": "LLM 缓存关闭，每次 Mix 均调用查询理解 LLM 和回答 LLM；Rerank daemon 的热/冷态仍可能变化。测试后已恢复 ENABLE_LLM_CACHE=true。",
+  "naive": [
+    {
+      "run": 1,
+      "ttft_ms": 1565.8,
+      "total_ms": 3024.7,
+      "keyword_llm_ms": 0,
+      "embedding_ms": 26.9,
+      "rerank_ms": 222.4,
+      "answer_llm_ms": 2654.1
+    },
+    {
+      "run": 2,
+      "ttft_ms": 1415,
+      "total_ms": 2876.4,
+      "keyword_llm_ms": 0,
+      "embedding_ms": 26.9,
+      "rerank_ms": 42.7,
+      "answer_llm_ms": 2688
+    },
+    {
+      "run": 3,
+      "ttft_ms": 1447.8,
+      "total_ms": 2906.7,
+      "keyword_llm_ms": 0,
+      "embedding_ms": 27,
+      "rerank_ms": 42.8,
+      "answer_llm_ms": 2652.3
+    },
+    {
+      "run": 4,
+      "ttft_ms": 1450.4,
+      "total_ms": 2910,
+      "keyword_llm_ms": 0,
+      "embedding_ms": 27,
+      "rerank_ms": 42.8,
+      "answer_llm_ms": 2657.6
+    },
+    {
+      "run": 5,
+      "ttft_ms": 1415.7,
+      "total_ms": 2872.7,
+      "keyword_llm_ms": 0,
+      "embedding_ms": 27,
+      "rerank_ms": 42.7,
+      "answer_llm_ms": 2653.9
+    }
+  ],
+  "mix": [
+    {
+      "run": 1,
+      "ttft_ms": 2849.3,
+      "total_ms": 3992.6,
+      "keyword_llm_ms": 924.1,
+      "embedding_ms": 76.3,
+      "rerank_ms": 680.1,
+      "answer_llm_ms": 2108.1
+    },
+    {
+      "run": 2,
+      "ttft_ms": 2862.2,
+      "total_ms": 4005,
+      "keyword_llm_ms": 919.8,
+      "embedding_ms": 80,
+      "rerank_ms": 681.8,
+      "answer_llm_ms": 2113
+    },
+    {
+      "run": 3,
+      "ttft_ms": 2863.8,
+      "total_ms": 4008,
+      "keyword_llm_ms": 920.8,
+      "embedding_ms": 80.4,
+      "rerank_ms": 681.6,
+      "answer_llm_ms": 2114.3
+    },
+    {
+      "run": 4,
+      "ttft_ms": 2861.4,
+      "total_ms": 4004.9,
+      "keyword_llm_ms": 921.9,
+      "embedding_ms": 79.8,
+      "rerank_ms": 681.7,
+      "answer_llm_ms": 2110.4
+    },
+    {
+      "run": 5,
+      "ttft_ms": 2860.8,
+      "total_ms": 4008.4,
+      "keyword_llm_ms": 921.1,
+      "embedding_ms": 79.8,
+      "rerank_ms": 682,
+      "answer_llm_ms": 2111.4
+    }
+  ],
+  "workload": {
+    "naive": {
+      "keyword_llm_calls": 0,
+      "embedding_items": 1,
+      "embedding_input_tokens": 12,
+      "rerank_candidates": 1,
+      "rerank_input_tokens": 762,
+      "answer_llm_input_tokens": 1613,
+      "answer_llm_output_tokens": 142
+    },
+    "mix": {
+      "keyword_llm_calls": 1,
+      "keyword_llm_input_tokens": 662,
+      "keyword_llm_output_tokens": 41,
+      "embedding_items": 3,
+      "embedding_input_tokens": 34,
+      "rerank_candidates": 6,
+      "rerank_input_tokens": 2340,
+      "answer_llm_input_tokens": 1188,
+      "answer_llm_output_tokens": 117
+    }
+  }
+}
