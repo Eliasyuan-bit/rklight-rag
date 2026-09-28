@@ -6,8 +6,9 @@ import argparse
 from pathlib import Path
 
 
-MARKER = "# RK3588_DEFAULT_QUERY_MODE_V3"
+MARKER = "# RK3588_DEFAULT_QUERY_MODE_V4"
 OLD_MARKERS = (
+    "# RK3588_DEFAULT_QUERY_MODE_V3",
     "# RK3588_DEFAULT_QUERY_MODE_V2",
     "# RK3588_DEFAULT_QUERY_MODE_V1",
 )
@@ -20,7 +21,7 @@ INSERT = '''    mode: Literal["local", "global", "hybrid", "naive", "mix", "bypa
         default=os.getenv("RK_DEFAULT_QUERY_MODE", "mix"),
         description="Query mode",
     )
-    # RK3588_DEFAULT_QUERY_MODE_V3
+    # RK3588_DEFAULT_QUERY_MODE_V4
 '''
 USER_PROMPT_ANCHOR = '''    user_prompt: Optional[str] = Field(
         default=None,
@@ -37,7 +38,7 @@ USER_PROMPT_INSERT = '''    user_prompt: Optional[str] = Field(
 MIX_BUDGET_ANCHOR = '''            param.max_entity_tokens = min(param.max_entity_tokens or 500, 500)
             param.max_relation_tokens = min(param.max_relation_tokens or 300, 300)
 '''
-MIX_BUDGET_INSERT = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic questions are grounded by reranked source
+MIX_BUDGET_V3 = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic questions are grounded by reranked source
             # passages. Broad graph descriptions can attach a neighbouring
             # test item's cause to the requested item, especially with a 2B
             # answer model, so do not render KG records for this query class.
@@ -46,11 +47,28 @@ MIX_BUDGET_INSERT = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic quest
                 param.max_entity_tokens = 0
                 param.max_relation_tokens = 0
 '''
+MIX_BUDGET_INSERT = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic and exact lexical questions are grounded by
+            # source passages. Broad graph descriptions can attach a related
+            # but unsupported command or test item, especially with a 2B
+            # answer model, so do not render KG records for these query types.
+            from lightrag.rk_lexical_retrieval import query_retrieval_profile
+            diagnostic_terms = ("错误", "故障", "失败", "异常", "为什么", "原因")
+            if (
+                any(term in self.query.casefold() for term in diagnostic_terms)
+                or query_retrieval_profile(self.query) == "exact"
+            ):
+                param.max_entity_tokens = 0
+                param.max_relation_tokens = 0
+'''
 
 
 def inject_diagnostic_budget(source: str) -> str:
-    if "diagnostic_terms =" in source:
+    if "query_retrieval_profile(self.query)" in source:
         return source
+    if MIX_BUDGET_V3 in source:
+        return source.replace(MIX_BUDGET_V3, MIX_BUDGET_INSERT, 1)
+    if "diagnostic_terms =" in source:
+        raise SystemExit("unsupported LightRAG source; unknown diagnostic budget block")
     if source.count(MIX_BUDGET_ANCHOR) != 1:
         raise SystemExit("unsupported LightRAG source; expected one mix budget anchor")
     return source.replace(MIX_BUDGET_ANCHOR, MIX_BUDGET_INSERT, 1)

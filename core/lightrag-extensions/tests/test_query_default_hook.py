@@ -45,6 +45,20 @@ class QueryDefaultHookTest(unittest.TestCase):
         self.assertNotIn(module.OLD_MARKERS[0], installed)
         self.assertIn('param.max_relation_tokens = 0', installed)
 
+    def test_upgrades_v3_with_exact_query_graph_suppression(self):
+        module = load_module()
+        source = module.INSERT.replace(module.MARKER, module.OLD_MARKERS[0])
+        source += "\n" + module.USER_PROMPT_INSERT
+        source += "\n" + module.MIX_BUDGET_V3
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "query_routes.py"
+            path.write_text(source)
+            module.install(path)
+            installed = path.read_text()
+        self.assertIn(module.MARKER, installed)
+        self.assertNotIn(module.OLD_MARKERS[0], installed)
+        self.assertIn("query_retrieval_profile(self.query)", installed)
+
 
 if __name__ == "__main__":
     unittest.main()

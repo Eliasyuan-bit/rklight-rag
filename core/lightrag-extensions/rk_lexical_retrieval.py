@@ -5,6 +5,7 @@ import asyncio
 from collections import Counter
 import hashlib
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -12,13 +13,180 @@ import re
 import threading
 from typing import Any
 
-from lightrag.utils import logger
-
-
 _TERM_RE = re.compile(r"[A-Za-z0-9]+(?:[._/:+-][A-Za-z0-9]+)*|[\u3400-\u9fff]+")
 _IDENTIFIER_SPLIT_RE = re.compile(r"[._/:+-]+")
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict[str, tuple[int, list[dict[str, Any]], list[Counter[str]], Counter[str], float]] = {}
+logger = logging.getLogger("lightrag")
+
+_EXACT_QUERY_INTENTS = (
+    "版本",
+    "命令",
+    "参数",
+    "输出",
+    "路径",
+    "错误码",
+    "日志",
+    "型号",
+    "地址",
+    "version",
+    "command",
+    "parameter",
+    "output",
+    "path",
+    "error code",
+)
+_SEMANTIC_QUERY_INTENTS = (
+    "介绍",
+    "概述",
+    "原理",
+    "总结",
+    "是什么",
+    "说明一下",
+    "overview",
+    "explain",
+    "summarize",
+)
+_COMPOSITE_IDENTIFIER_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?:[._/:+-][A-Za-z0-9]+)+"
+)
+_VERSION_RE = re.compile(r"(?i)\bv?\d+(?:\.\d+){1,}(?:[_-][A-Za-z0-9]+)*\b")
+_CLI_FLAG_RE = re.compile(r"(?<![\w-])--?[A-Za-z][A-Za-z0-9-]*\b")
+_HEX_RE = re.compile(r"(?i)\b0x[0-9a-f]+\b")
+
+
+def query_retrieval_profile(query: str) -> str:
+    """Classify only the retrieval signal needed for soft hybrid weighting.
+
+    Both sparse and dense retrieval always run.  This profile changes their
+    contribution; it is not a hard router and does not encode domain answers.
+    """
+    folded = query.casefold()
+    has_exact_intent = any(term in folded for term in _EXACT_QUERY_INTENTS)
+    has_exact_shape = any(
+        pattern.search(query)
+        for pattern in (
+            _COMPOSITE_IDENTIFIER_RE,
+            _VERSION_RE,
+            _CLI_FLAG_RE,
+            _HEX_RE,
+        )
+    )
+    if has_exact_shape and has_exact_intent:
+        return "exact"
+    if has_exact_shape and len(query.strip()) <= 48:
+        return "exact"
+    if any(term in folded for term in _SEMANTIC_QUERY_INTENTS):
+        return "semantic"
+    return "balanced"
+
+
+def query_aware_rrf_weights(query: str) -> tuple[str, float, float]:
+    profile = query_retrieval_profile(query)
+    if profile == "exact":
+        return (
+            profile,
+            float(os.getenv("RK_RRF_EXACT_VECTOR_WEIGHT", "0.75")),
+            float(os.getenv("RK_RRF_EXACT_LEXICAL_WEIGHT", "2.5")),
+        )
+    if profile == "semantic":
+        return (
+            profile,
+            float(os.getenv("RK_RRF_SEMANTIC_VECTOR_WEIGHT", "1.5")),
+            float(os.getenv("RK_RRF_SEMANTIC_LEXICAL_WEIGHT", "1.0")),
+        )
+    return (
+        profile,
+        float(os.getenv("RK_RRF_VECTOR_WEIGHT", "1.0")),
+        float(os.getenv("RK_RRF_LEXICAL_WEIGHT", "1.5")),
+    )
+
+
+def query_aware_rerank_top_n(
+    query: str, chunks: list[dict[str, Any]], requested_top_k: int
+) -> int:
+    """Expose enough exact-query candidates for post-rerank fusion."""
+    if query_retrieval_profile(query) != "exact":
+        return requested_top_k
+    maximum = max(requested_top_k, int(os.getenv("RK_EXACT_RERANK_CANDIDATE_K", "12")))
+    return min(len(chunks), maximum)
+
+
+def fuse_query_aware_rerank(
+    query: str,
+    reranked_chunks: list[dict[str, Any]],
+    requested_top_k: int,
+) -> list[dict[str, Any]]:
+    """Blend rerank and retrieval ranks while reserving direct lexical evidence.
+
+    The reranker remains authoritative for normal semantic queries.  Exact
+    queries additionally retain the best substantive BM25 passage so a
+    command, version, path, or error code cannot disappear after recall.
+    """
+    if query_retrieval_profile(query) != "exact" or not reranked_chunks:
+        return reranked_chunks
+
+    rrf_k = float(os.getenv("RK_POST_RERANK_RRF_K", "60"))
+    rerank_weight = float(os.getenv("RK_POST_RERANK_WEIGHT", "1.0"))
+    retrieval_weight = float(os.getenv("RK_POST_RERANK_RETRIEVAL_WEIGHT", "0.7"))
+    lexical_weight = float(os.getenv("RK_POST_RERANK_LEXICAL_WEIGHT", "1.5"))
+    ordered = []
+    for rerank_rank, chunk in enumerate(reranked_chunks, 1):
+        item = chunk.copy()
+        retrieval_rank = int(item.get("retrieval_rank") or rerank_rank)
+        lexical_rank = item.get("lexical_rank")
+        score = rerank_weight / (rrf_k + rerank_rank)
+        score += retrieval_weight / (rrf_k + retrieval_rank)
+        if lexical_rank is not None:
+            score += lexical_weight / (rrf_k + int(lexical_rank))
+        item["query_aware_score"] = score
+        ordered.append(item)
+    ordered.sort(
+        key=lambda item: (
+            -float(item["query_aware_score"]),
+            int(item.get("retrieval_rank") or 10**9),
+        )
+    )
+
+    limit = max(1, requested_top_k)
+    selected = ordered[:limit]
+    protected = next(
+        (
+            item
+            for item in sorted(
+                ordered,
+                key=lambda value: int(value.get("lexical_rank") or 10**9),
+            )
+            if item.get("lexical_rank") is not None
+            and _has_substantive_evidence(str(item.get("content") or ""))
+        ),
+        None,
+    )
+    if protected is not None:
+        protected_id = str(protected.get("chunk_id") or protected.get("id") or "")
+        if all(
+            str(item.get("chunk_id") or item.get("id") or "") != protected_id
+            for item in selected
+        ):
+            selected[-1] = protected
+        for item in selected:
+            if str(item.get("chunk_id") or item.get("id") or "") == protected_id:
+                item["exact_retrieval_protected"] = True
+                break
+    selected.sort(key=lambda item: -float(item["query_aware_score"]))
+    logger.info(
+        "Query-aware rerank fusion: profile=exact input=%d output=%d protected=%s",
+        len(reranked_chunks),
+        len(selected),
+        protected_id if protected is not None else "none",
+    )
+    return selected
+
+
+def _has_substantive_evidence(content: str) -> bool:
+    body = re.sub(r"(?m)^\s*#{1,6}\s+.*$", "", content)
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL).strip()
+    return len(body) >= int(os.getenv("RK_EXACT_MIN_EVIDENCE_CHARS", "24"))
 
 
 def log_chunk_stage(
@@ -123,7 +291,14 @@ def preserve_focused_evidence(
             "file_path", chunk.get("file_path", "unknown_source")
         )
         chunk["source_type"] = "lexical-fused"
-        for key in ("rrf_score", "lexical_score"):
+        for key in (
+            "rrf_score",
+            "lexical_score",
+            "vector_rank",
+            "lexical_rank",
+            "retrieval_rank",
+            "retrieval_profile",
+        ):
             if preferred.get(key) is not None:
                 chunk[key] = preferred[key]
     return restored
@@ -448,8 +623,7 @@ async def fuse_vector_and_lexical_chunks(
     candidate_k = retrieval_candidate_k(requested_top_k)
     lexical_chunks = await asyncio.to_thread(_bm25, query, store_path, candidate_k)
     rrf_k = float(os.getenv("RK_RRF_K", "60"))
-    vector_weight = float(os.getenv("RK_RRF_VECTOR_WEIGHT", "1.0"))
-    lexical_weight = float(os.getenv("RK_RRF_LEXICAL_WEIGHT", "1.5"))
+    profile, vector_weight, lexical_weight = query_aware_rrf_weights(query)
     fused: dict[str, dict[str, Any]] = {}
     scores: Counter[str] = Counter()
     for rank, chunk in enumerate(vector_chunks, 1):
@@ -457,6 +631,7 @@ async def fuse_vector_and_lexical_chunks(
         if not chunk_id:
             continue
         fused[chunk_id] = dict(chunk)
+        fused[chunk_id]["vector_rank"] = rank
         scores[chunk_id] += vector_weight / (rrf_k + rank)
     for rank, chunk in enumerate(lexical_chunks, 1):
         chunk_id = str(chunk["chunk_id"])
@@ -474,12 +649,23 @@ async def fuse_vector_and_lexical_chunks(
             # P! chunk cannot consume the complete evidence budget.
             fused[chunk_id]["content"] = chunk["content"]
         fused[chunk_id]["lexical_score"] = chunk.get("lexical_score")
+        fused[chunk_id]["lexical_rank"] = rank
         scores[chunk_id] += lexical_weight / (rrf_k + rank)
     ranked_ids = sorted(scores, key=lambda chunk_id: (-scores[chunk_id], chunk_id))[:candidate_k]
-    result = [{**fused[chunk_id], "rrf_score": scores[chunk_id]} for chunk_id in ranked_ids]
+    result = [
+        {
+            **fused[chunk_id],
+            "rrf_score": scores[chunk_id],
+            "retrieval_rank": rank,
+            "retrieval_profile": profile,
+        }
+        for rank, chunk_id in enumerate(ranked_ids, 1)
+    ]
     logger.info(
-        "Chunk retrieval fusion: vector=%d lexical=%d fused=%d requested_top_k=%d candidate_k=%d",
-        len(vector_chunks), len(lexical_chunks), len(result), requested_top_k, candidate_k,
+        "Chunk retrieval fusion: profile=%s vector_weight=%.2f lexical_weight=%.2f "
+        "vector=%d lexical=%d fused=%d requested_top_k=%d candidate_k=%d",
+        profile, vector_weight, lexical_weight, len(vector_chunks),
+        len(lexical_chunks), len(result), requested_top_k, candidate_k,
     )
     log_chunk_stage(
         query,

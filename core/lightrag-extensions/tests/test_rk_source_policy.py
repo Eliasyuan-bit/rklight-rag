@@ -320,6 +320,60 @@ class SourcePolicyTest(unittest.TestCase):
         self.assertNotIn("GET_PN", result[0]["content"])
         self.assertTrue(result[0]["named_section_compacted"])
 
+    def test_document_title_does_not_hide_chinese_intent_section(self):
+        module = load_module()
+        content = (
+            "# burn_stress 使用说明\n\n"
+            "## 版本检查\n```\nburn_stress -V\n```\n"
+            "version=V1.0.4_20260806\n\n"
+            "## 用法\nburn_stress [-n N] [-v]\n"
+        )
+        result = module.apply_source_authority_policy(
+            [{
+                "chunk_id": "version-command",
+                "file_path": "burn_stress.text.md",
+                "content": content,
+                "rerank_score": 1.0,
+            }],
+            "burn_stress检查版本怎么做",
+        )
+
+        self.assertIn("## 版本检查", result[0]["content"])
+        self.assertIn("burn_stress -V", result[0]["content"])
+        self.assertNotIn("## 用法", result[0]["content"])
+
+    def test_heading_only_wrapper_is_never_a_compaction_result(self):
+        module = load_module()
+        content = (
+            "# burn_stress 使用说明\n"
+            "## 修订记录\nV1.0.4 修复NPU测试\n"
+        )
+        compacted, score = module._compact_named_sections(
+            "burn_stress版本如何输出", content
+        )
+        self.assertIsNone(compacted)
+        self.assertEqual(score, 0)
+
+    def test_protected_exact_section_wins_equal_heading_match(self):
+        module = load_module()
+        result = module.apply_source_authority_policy(
+            [
+                {
+                    "chunk_id": "version",
+                    "content": "## 版本检查\nburn_stress -V\nversion=V1.0.4",
+                    "rerank_score": 0.7,
+                },
+                {
+                    "chunk_id": "runtime-output",
+                    "content": "## 输出说明\nrunning DRAM loops=2",
+                    "rerank_score": 0.9,
+                    "exact_retrieval_protected": True,
+                },
+            ],
+            "burn_stress版本如何输出",
+        )
+        self.assertEqual([item["chunk_id"] for item in result], ["version"])
+
     def test_mermaid_edges_are_not_treated_as_markdown_table_rows(self):
         module = load_module()
         content = "\n".join(

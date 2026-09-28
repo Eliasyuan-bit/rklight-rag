@@ -10,6 +10,20 @@ from typing import Any
 _METRIC_QUERY_TERMS = ("性能", "performance", "ttft", "tpot", "tps", "吞吐", "延迟")
 _TABLE_HEADER_TERMS = ("modelname", "accelerator", "inputtokens", "newtokens", "ttft", "tpot", "decodetps")
 _DIAGNOSTIC_QUERY_TERMS = ("错误", "故障", "失败", "异常", "为什么", "原因")
+_HEADING_TARGET_TERMS = (
+    "版本",
+    "命令",
+    "参数",
+    "路径",
+    "错误码",
+    "型号",
+    "地址",
+    "version",
+    "command",
+    "parameter",
+    "path",
+    "error code",
+)
 
 
 def _diagnostic_query_identifiers(query: str) -> set[str]:
@@ -20,6 +34,31 @@ def _diagnostic_query_identifiers(query: str) -> set[str]:
     }
 
 
+def _heading_query_terms(query: str) -> set[str]:
+    terms = _diagnostic_query_identifiers(query)
+    for value in re.findall(r"[\u3400-\u9fff]{2,}", query):
+        if len(value) == 2:
+            terms.add(value)
+        else:
+            terms.update(value[index : index + 2] for index in range(len(value) - 1))
+    return terms
+
+
+def _has_section_body(block: str) -> bool:
+    body = re.sub(r"(?m)^\s*#{1,6}\s+.*$", "", block, count=1)
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL).strip()
+    return len(body) >= int(os.getenv("RK_SECTION_MIN_BODY_CHARS", "12"))
+
+
+def _heading_match_score(heading: str, query_terms: set[str]) -> int:
+    folded = heading.casefold()
+    return sum(
+        3 if term in _HEADING_TARGET_TERMS else 1
+        for term in query_terms
+        if term in folded
+    )
+
+
 def _compact_named_sections(query: str, content: str) -> tuple[str | None, int]:
     """Select Markdown sections explicitly named by the user.
 
@@ -27,26 +66,33 @@ def _compact_named_sections(query: str, content: str) -> tuple[str | None, int]:
     as ``介绍一下 USB 测试`` should not expose the neighbouring SET_PN and
     GET_PN sections merely because the parser stored them in one chunk.
     """
-    query_terms = _diagnostic_query_identifiers(query)
+    query_terms = _heading_query_terms(query)
     if not query_terms:
         return None, 0
     matches = list(re.finditer(r"(?m)^#{1,6}\s+.+$", content))
-    if len(matches) < 2:
+    if not matches:
         return None, 0
     sections = []
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
         block = content[match.start() : end].strip()
+        if not _has_section_body(block):
+            continue
         heading = match.group(0).casefold()
-        score = sum(1 for term in query_terms if term in heading)
+        score = _heading_match_score(heading, query_terms)
         sections.append((score, block))
+    if not sections:
+        return None, 0
     best_score = max(score for score, _ in sections)
     if best_score <= 0:
         return None, 0
     selected = [block for score, block in sections if score == best_score]
-    if len(selected) == len(sections):
+    if len(selected) == len(sections) and len(sections) > 1:
         return None, 0
-    return "\n\n".join(selected), best_score
+    compacted = "\n\n".join(selected)
+    if not _has_section_body(compacted):
+        return None, 0
+    return compacted, best_score
 
 
 def _compact_named_numbered_item(query: str, content: str) -> tuple[str | None, int]:
@@ -374,6 +420,11 @@ def apply_source_authority_policy(
                 int(item.get("named_section_match_count", 0)),
             ) == best_named_match
         ]
+    protected_exact = [
+        item for item in ranked if item.get("exact_retrieval_protected")
+    ]
+    if protected_exact:
+        ranked = protected_exact
     complete_tables = [
         item for item in ranked if float(item.get("table_evidence_boost", 1.0)) > 1.0
     ]

@@ -13,11 +13,6 @@ MODULE_PATH = Path(__file__).parents[1] / "rk_lexical_retrieval.py"
 
 
 def load_module():
-    lightrag = types.ModuleType("lightrag")
-    utils = types.ModuleType("lightrag.utils")
-    utils.logger = types.SimpleNamespace(info=lambda *args: None, warning=lambda *args: None, debug=lambda *args: None)
-    sys.modules.setdefault("lightrag", lightrag)
-    sys.modules.setdefault("lightrag.utils", utils)
     spec = importlib.util.spec_from_file_location("rk_lexical_retrieval_test", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader
@@ -248,12 +243,71 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
             "file_path": "ft.md",
             "lexical_score": 12.5,
             "rrf_score": 0.04,
+            "lexical_rank": 1,
+            "retrieval_rank": 2,
         }]
         restored = module.preserve_focused_evidence(merged, vector)
         self.assertEqual(restored, 1)
         self.assertEqual(merged[0]["content"], "# USB_TEST\nspeed=5000")
         self.assertEqual(merged[0]["source_type"], "lexical-fused")
         self.assertEqual(merged[0]["lexical_score"], 12.5)
+        self.assertEqual(merged[0]["lexical_rank"], 1)
+        self.assertEqual(merged[0]["retrieval_rank"], 2)
+
+    def test_query_profile_soft_routes_exact_and_semantic_queries(self):
+        module = load_module()
+        self.assertEqual(
+            module.query_retrieval_profile("burn_stress版本如何输出"), "exact"
+        )
+        self.assertEqual(
+            module.query_retrieval_profile("介绍一下压力测试的整体原理"),
+            "semantic",
+        )
+        self.assertEqual(module.query_retrieval_profile("USB错误是为什么"), "balanced")
+
+        exact_profile, exact_vector, exact_lexical = module.query_aware_rrf_weights(
+            "burn_stress版本如何输出"
+        )
+        self.assertEqual(exact_profile, "exact")
+        self.assertGreater(exact_lexical, exact_vector)
+
+    def test_exact_query_expands_rerank_window_and_protects_lexical_top_one(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "revision",
+                "content": "# burn_stress 使用说明\n版本修订记录和作者信息",
+                "rerank_score": 0.99,
+                "retrieval_rank": 1,
+                "lexical_rank": 2,
+            },
+            {
+                "chunk_id": "command",
+                "content": "## 版本检查\n```\nburn_stress -V\n```\nversion=V1.0.4",
+                "rerank_score": 0.20,
+                "retrieval_rank": 2,
+                "lexical_rank": 1,
+            },
+            {
+                "chunk_id": "summary",
+                "content": "burn_stress运行在MSH环境，执行多项压力测试",
+                "rerank_score": 0.80,
+                "retrieval_rank": 3,
+                "lexical_rank": 3,
+            },
+        ]
+
+        self.assertEqual(
+            module.query_aware_rerank_top_n(
+                "burn_stress版本如何输出", chunks, requested_top_k=1
+            ),
+            3,
+        )
+        result = module.fuse_query_aware_rerank(
+            "burn_stress版本如何输出", chunks, requested_top_k=1
+        )
+        self.assertEqual([item["chunk_id"] for item in result], ["command"])
+        self.assertTrue(result[0]["exact_retrieval_protected"])
 
 
 if __name__ == "__main__":
