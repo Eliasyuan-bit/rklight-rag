@@ -17,6 +17,22 @@ def load_module():
 
 
 class SourcePolicyTest(unittest.TestCase):
+
+    def test_recovered_table_parent_keeps_schema_instead_of_compacting_to_row(self):
+        module = load_module()
+        content = (
+            "LLM Model Performance\n"
+            "| Model Name | Accelerator | Input Tokens | New Tokens | TTFT (ms) | TPOT (ms) | Decode TPS |\n"
+            "| --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Qwen3-4B | RK1828 | 128 | 128 | 109.78 | 11.30 | 88.47 |"
+        )
+        result = module.apply_source_authority_policy(
+            [{"chunk_id": "sdk-table-00", "content": content, "rerank_score": 1.0}],
+            "Qwen3-4B 在 RK1828 上的 LLM 性能数据是多少？",
+        )
+        self.assertTrue(result[0]["table_parent"])
+        self.assertIn("TTFT (ms)", result[0]["content"])
+        self.assertIn("88.47", result[0]["content"])
     def test_primary_evidence_outranks_derived_answer(self):
         module = load_module()
         chunks = [
@@ -219,6 +235,27 @@ class SourcePolicyTest(unittest.TestCase):
         self.assertNotIn("SN_MATCH_SOC", result[0]["content"])
         self.assertNotIn("SARADC0_BOOT", result[0]["content"])
         self.assertTrue(result[0]["diagnostic_table_compacted"])
+
+    def test_exact_policy_uses_full_content_before_table_compaction(self):
+        module = load_module()
+        result = module.apply_source_authority_policy(
+            [
+                {
+                    "chunk_id": "pmic",
+                    "content": "POWER_12V流程说明，没有型号行",
+                    "full_content": (
+                        '<table format="json">'
+                        '[["SC812C0", "14~44"], ["IS6608A", "86"], '
+                        '["MPQ8655", "79"]]</table>'
+                    ),
+                    "rerank_score": 0.8,
+                }
+            ],
+            "IS6608A 和 MPQ8655 的 12V 复位电流基准是多少？",
+        )
+        self.assertIn("IS6608A", result[0]["content"])
+        self.assertIn("MPQ8655", result[0]["content"])
+        self.assertNotIn("SC812C0", result[0]["content"])
 
     def test_diagnostic_table_without_explicit_identifier_is_not_compacted(self):
         module = load_module()

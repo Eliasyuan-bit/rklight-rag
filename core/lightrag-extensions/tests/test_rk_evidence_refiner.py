@@ -139,6 +139,43 @@ class EvidenceRefinerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("| USB |", result[0]["content"])
         self.assertNotIn("| FAN |", result[0]["content"])
 
+    async def test_reconstructs_table_caption_heading_header_and_row_as_one_package(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "performance",
+                "content": (
+                    "### 性能测试\n"
+                    "LLM Model Performance\n\n"
+                    "| ModelName | TTFT | TPS |\n"
+                    "| --- | --- | --- |\n"
+                    "| Qwen2.5-7B | 162.25ms | 70.47 |\n"
+                    "| Qwen3-4B | 88.47ms | 99.00 |"
+                ),
+                "rerank_score": 0.9,
+            }
+        ]
+
+        def scores(_query, documents):
+            return [0.96 if "Qwen2.5-7B" in document else 0.02 for document in documents]
+
+        with patch.dict(
+            os.environ,
+            {
+                "RK_EVIDENCE_REFINER_ENABLED": "1",
+                "RK_EVIDENCE_MIN_TOTAL_CHARS": "0",
+                "RK_EVIDENCE_NEIGHBOR_SCORE_RATIO": "0.99",
+            },
+        ), patch.object(module, "_request_rerank", side_effect=scores):
+            result = await module.refine_evidence_units(chunks, "Qwen2.5-7B的性能数据是多少？")
+
+        evidence = result[0]["content"]
+        self.assertIn("### 性能测试", evidence)
+        self.assertIn("LLM Model Performance", evidence)
+        self.assertIn("| ModelName | TTFT | TPS |", evidence)
+        self.assertIn("| Qwen2.5-7B | 162.25ms | 70.47 |", evidence)
+        self.assertNotIn("Qwen3-4B", evidence)
+
     async def test_reconstructs_only_selected_json_table_row(self):
         module = load_module()
         chunks = [
@@ -170,6 +207,54 @@ class EvidenceRefinerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("USB", result[0]["content"])
         self.assertNotIn("SARADC", result[0]["content"])
         self.assertTrue(result[0]["content"].startswith("<table"))
+
+    async def test_late_exact_table_row_is_admitted_before_reranking(self):
+        """A table row after the local cap must not disappear by source order."""
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "performance",
+                "content": (
+                    "说明一。\n说明二。\n说明三。\n\n"
+                    "| ModelName | TTFT | TPS |\n"
+                    "| --- | --- | --- |\n"
+                    "| Qwen2.5-7B | 162.25ms | 70.47 |\n"
+                    "| Qwen3-4B | 88.47ms | 99.00 |"
+                ),
+                "rerank_score": 0.9,
+            }
+        ]
+
+        def scores(_query, documents):
+            return [0.98 if "Qwen2.5-7B" in document else 0.01 for document in documents]
+
+        with patch.dict(
+            os.environ,
+            {
+                "RK_EVIDENCE_REFINER_ENABLED": "1",
+                "RK_EVIDENCE_MIN_TOTAL_CHARS": "0",
+                "RK_EVIDENCE_MAX_CANDIDATES": "2",
+                "RK_EVIDENCE_MAX_UNITS_PER_CHUNK": "2",
+                "RK_EVIDENCE_MIN_UNITS": "2",
+                "RK_EVIDENCE_NEIGHBOR_SCORE_RATIO": "0.99",
+            },
+        ), patch.object(module, "_request_rerank", side_effect=scores):
+            result = await module.refine_evidence_units(chunks, "Qwen2.5-7B的性能数据是多少？")
+
+        self.assertIn("Qwen2.5-7B", result[0]["content"])
+        self.assertIn("| ModelName | TTFT | TPS |", result[0]["content"])
+        self.assertNotIn("Qwen3-4B", result[0]["content"])
+
+    def test_candidate_budget_is_round_robin_across_chunks(self):
+        module = load_module()
+        chunks = [
+            {"chunk_id": "first", "content": "目标 A。目标 B。目标 C。"},
+            {"chunk_id": "second", "content": "Qwen2.5-7B 性能数据。"},
+        ]
+        candidates = module._select_candidate_units(
+            chunks, "Qwen2.5-7B性能", max_per_chunk=3, max_candidates=2
+        )
+        self.assertEqual({unit["chunk_index"] for unit in candidates}, {0, 1})
 
     async def test_reranker_failure_returns_original_chunks(self):
         module = load_module()

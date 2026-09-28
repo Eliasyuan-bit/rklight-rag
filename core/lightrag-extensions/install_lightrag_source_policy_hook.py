@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 
 
-MARKER = "# RK3588_SOURCE_AUTHORITY_V4"
+MARKER = "# RK3588_SOURCE_AUTHORITY_V5"
+V4_MARKER = "# RK3588_SOURCE_AUTHORITY_V4"
 V3_MARKER = "# RK3588_SOURCE_AUTHORITY_V3"
 V2_MARKER = "# RK3588_SOURCE_AUTHORITY_V2"
 OLD_MARKER = "# RK3588_SOURCE_AUTHORITY_V1"
@@ -20,6 +21,7 @@ IMPORT_INSERT = IMPORT_ANCHOR + (
     "    fuse_query_aware_rerank,\n"
     "    query_aware_rerank_top_n,\n"
     ")\n"
+    "from lightrag.rk_table_parent import prioritize_typed_table_parents\n"
 )
 RERANK_TRACE_ANCHOR = '''        _rk_log_chunk_stage(
             query,
@@ -54,6 +56,31 @@ def install(path: Path) -> None:
     source = path.read_text()
     if MARKER in source:
         print(f"already installed: {path}")
+        return
+    if V4_MARKER in source:
+        source = replace_once(
+            source,
+            "from lightrag.rk_lexical_retrieval import (\n"
+            "    fuse_query_aware_rerank,\n"
+            "    query_aware_rerank_top_n,\n"
+            ")\n",
+            "from lightrag.rk_lexical_retrieval import (\n"
+            "    fuse_query_aware_rerank,\n"
+            "    query_aware_rerank_top_n,\n"
+            ")\n"
+            "from lightrag.rk_table_parent import prioritize_typed_table_parents\n",
+            "v4 table parent import",
+        )
+        source = replace_once(
+            source,
+            "        rerank_top_k = query_param.chunk_top_k or len(unique_chunks)\n",
+            "        unique_chunks = prioritize_typed_table_parents(unique_chunks, query)\n"
+            "        rerank_top_k = query_param.chunk_top_k or len(unique_chunks)\n",
+            "v4 pre-rerank table parent selection",
+        )
+        source = source.replace(V4_MARKER, MARKER, 1)
+        path.write_text(source)
+        print(f"upgraded: {path}")
         return
     if V3_MARKER in source:
         source = replace_once(

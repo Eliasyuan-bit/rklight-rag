@@ -53,6 +53,37 @@ _COMPOSITE_IDENTIFIER_RE = re.compile(
 _VERSION_RE = re.compile(r"(?i)\bv?\d+(?:\.\d+){1,}(?:[_-][A-Za-z0-9]+)*\b")
 _CLI_FLAG_RE = re.compile(r"(?<![\w-])--?[A-Za-z][A-Za-z0-9-]*\b")
 _HEX_RE = re.compile(r"(?i)\b0x[0-9a-f]+\b")
+_NAMED_DIGIT_RE = re.compile(r"(?i)\b[A-Za-z][A-Za-z0-9_.+-]*\d[A-Za-z0-9_.+-]*\b")
+_SPACED_IDENTIFIER_RE = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9]*(?:\s*(?:[._/:+-]\s*|\s+)\d+(?:\s*(?:[._/:+-]\s*|\s+)[A-Za-z0-9]+)*)"
+)
+
+
+def _compact_identifier(value: str) -> str:
+    """Canonical retrieval key for a technical identifier, never for display."""
+    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def _index_text(content: str, table_type: str = "") -> str:
+    """Build a generic retrieval-only normalization view of source text.
+
+    PDF extraction can insert spaces around *any* technical identifier, such
+    as ``Qwen 2.5 7B``, ``RKNN 3 SDK`` or ``DDR 4``. Every identifier with a
+    number receives a punctuation/space-insensitive key. The original source
+    text is never changed or sent to the generator differently.
+    """
+    aliases = {
+        _compact_identifier(match.group(0))
+        for match in _SPACED_IDENTIFIER_RE.finditer(content)
+        if any(character.isdigit() for character in match.group(0))
+    }
+    type_terms = {
+        "server_config": "server configuration recommended conversion time 服务器 配置 推荐 转换 时间",
+        "accuracy": "accuracy precision float32 w4a16 精度 准确率",
+        "llm_performance": "llm model performance ttft tpot decode tps 性能",
+        "vlm_performance": "vlm vision model performance visual 性能 视觉",
+    }.get(table_type, "")
+    return "\n".join(part for part in (content, " ".join(sorted(aliases)), type_terms) if part)
 
 
 def query_retrieval_profile(query: str) -> str:
@@ -70,6 +101,7 @@ def query_retrieval_profile(query: str) -> str:
             _VERSION_RE,
             _CLI_FLAG_RE,
             _HEX_RE,
+            _NAMED_DIGIT_RE,
         )
     )
     if has_exact_shape and has_exact_intent:
@@ -79,6 +111,38 @@ def query_retrieval_profile(query: str) -> str:
     if any(term in folded for term in _SEMANTIC_QUERY_INTENTS):
         return "semantic"
     return "balanced"
+
+
+def query_direct_identifiers(query: str) -> tuple[str, ...]:
+    """Return literal identifiers that a direct evidence passage should carry.
+
+    This deliberately ignores ordinary natural-language terms.  It covers
+    model names, commands, flags, versions and hexadecimal values, which are
+    the kinds of facts semantic similarity can blur without proving that the
+    requested object is present in the evidence.
+    """
+    identifiers = set(_COMPOSITE_IDENTIFIER_RE.findall(query.casefold()))
+    identifiers.update(_VERSION_RE.findall(query.casefold()))
+    identifiers.update(_CLI_FLAG_RE.findall(query.casefold()))
+    identifiers.update(_HEX_RE.findall(query.casefold()))
+    identifiers.update(
+        token.casefold()
+        for token in _TERM_RE.findall(query)
+        if len(token) >= 3
+        and token.isascii()
+        and ("_" in token or any(char.isdigit() for char in token))
+    )
+    return tuple(sorted(identifiers, key=lambda item: (-len(item), item)))
+
+
+def direct_evidence_coverage(query: str, content: str) -> tuple[int, int, tuple[str, ...]]:
+    """Measure literal query-identifier coverage in a candidate passage."""
+    identifiers = query_direct_identifiers(query)
+    if not identifiers:
+        return 0, 0, ()
+    folded = content.casefold()
+    matched = tuple(identifier for identifier in identifiers if identifier in folded)
+    return len(matched), len(identifiers), matched
 
 
 def query_aware_rrf_weights(query: str) -> tuple[str, float, float]:
@@ -150,17 +214,42 @@ def fuse_query_aware_rerank(
 
     limit = max(1, requested_top_k)
     selected = ordered[:limit]
-    protected = next(
-        (
-            item
-            for item in sorted(
-                ordered,
-                key=lambda value: int(value.get("lexical_rank") or 10**9),
-            )
-            if item.get("lexical_rank") is not None
-            and _has_substantive_evidence(str(item.get("content") or ""))
-        ),
-        None,
+    direct_candidates = []
+    for item in ordered:
+        evidence_source = str(
+            item.get("full_content") or item.get("content") or ""
+        )
+        matched, total, identifiers = direct_evidence_coverage(
+            query, evidence_source
+        )
+        if matched and _has_substantive_evidence(evidence_source):
+            item["exact_evidence_coverage"] = matched
+            item["exact_evidence_identifier_count"] = total
+            item["exact_evidence_identifiers"] = list(identifiers)
+            direct_candidates.append(item)
+    protected = (
+        min(
+            direct_candidates,
+            key=lambda value: (
+                -int(value["exact_evidence_coverage"]),
+                -int(value["exact_evidence_identifier_count"]),
+                int(value.get("lexical_rank") or 10**9),
+                int(value.get("retrieval_rank") or 10**9),
+            ),
+        )
+        if direct_candidates
+        else next(
+            (
+                item
+                for item in sorted(
+                    ordered,
+                    key=lambda value: int(value.get("lexical_rank") or 10**9),
+                )
+                if item.get("lexical_rank") is not None
+                and _has_substantive_evidence(str(item.get("content") or ""))
+            ),
+            None,
+        )
     )
     if protected is not None:
         protected_id = str(protected.get("chunk_id") or protected.get("id") or "")
@@ -232,8 +321,13 @@ def log_chunk_stage(
     )
 
 
-def retrieval_candidate_k(requested_top_k: int) -> int:
+def retrieval_candidate_k(requested_top_k: int, query: str = "") -> int:
     configured = int(os.getenv("RK_RETRIEVAL_CANDIDATE_K", "6"))
+    if query and query_retrieval_profile(query) == "exact":
+        configured = max(
+            configured,
+            int(os.getenv("RK_EXACT_RETRIEVAL_CANDIDATE_K", "12")),
+        )
     return max(requested_top_k, configured)
 
 
@@ -316,6 +410,10 @@ def _tokens(text: str) -> list[str]:
             parts = [part for part in _IDENTIFIER_SPLIT_RE.split(term) if part]
             if len(parts) > 1:
                 tokens.extend(parts)
+            if any(character.isdigit() for character in term):
+                compact = _compact_identifier(term)
+                if compact and compact != term:
+                    tokens.append(compact)
     return tokens
 
 
@@ -340,11 +438,47 @@ def _load_index(path: Path):
         document = dict(value)
         document["chunk_id"] = chunk_id
         document["source_type"] = "lexical"
-        counts = Counter(_tokens(str(document["content"])))
+        document["search_content"] = _index_text(str(document["content"]))
+        counts = Counter(_tokens(document["search_content"]))
         documents.append(document)
         term_counts.append(counts)
         document_frequency.update(counts.keys())
         total_length += sum(counts.values())
+    # Optional persistent PDF table parents.  They are separate lexical
+    # documents so a row can be recalled even when its original prose chunk
+    # is not in the vector candidate window.
+    parent_path = Path(os.getenv("RK_TABLE_PARENT_INDEX", str(path.with_name("table_parent_index.json"))))
+    if parent_path.exists():
+        try:
+            parent_raw = json.loads(parent_path.read_text(encoding="utf-8"))
+            parent_tables = parent_raw.get("tables", []) if isinstance(parent_raw, dict) else []
+        except (OSError, json.JSONDecodeError):
+            parent_tables = []
+        for table in parent_tables:
+            if not isinstance(table, dict) or not table.get("parent_content"):
+                continue
+            table_id = str(table.get("table_id") or "")
+            if not table_id:
+                continue
+            document = {
+                "chunk_id": table_id,
+                "source_chunk_id": table.get("source_chunk_id", ""),
+                "content": str(table["parent_content"]),
+                "full_content": str(table["parent_content"]),
+                "file_path": table.get("source_file", ""),
+                "table_id": table_id,
+                "table_type": table.get("table_type", "unknown"),
+                "table_parent": True,
+                "source_type": "table-parent",
+            }
+            document["search_content"] = _index_text(
+                document["content"], str(document["table_type"])
+            )
+            counts = Counter(_tokens(document["search_content"]))
+            documents.append(document)
+            term_counts.append(counts)
+            document_frequency.update(counts.keys())
+            total_length += sum(counts.values())
     average_length = total_length / len(documents) if documents else 0.0
     result = (documents, term_counts, document_frequency, average_length)
     with _CACHE_LOCK:
@@ -379,20 +513,34 @@ def _bm25(query: str, path: Path, top_k: int) -> list[dict[str, Any]]:
                 1.0 - b + b * length / max(average_length, 1.0)
             )
             score += query_frequency * inverse_document_frequency * frequency * (k1 + 1.0) / denominator
-        content_folded = str(document["content"]).casefold()
+        content_folded = str(document.get("search_content") or document["content"]).casefold()
         exact_hits = sum(1 for term in exact_terms if term in content_folded)
         score += exact_hits * float(os.getenv("RK_LEXICAL_EXACT_BOOST", "2.0"))
         if score > 0:
             ranked.append((score, document))
     ranked.sort(key=lambda item: (-item[0], item[1]["chunk_id"]))
-    return [
-        {
-            **document,
-            "content": _best_passage(str(document["content"]), expanded_query),
-            "lexical_score": score,
-        }
-        for score, document in ranked[:top_k]
-    ]
+    result = []
+    exact_query = query_retrieval_profile(query) == "exact"
+    identifiers = query_direct_identifiers(query)
+    for score, document in ranked[:top_k]:
+        original = str(document["content"])
+        passage = _best_passage(original, expanded_query)
+        # A focused window is useful for ordinary prose, but it must not hide
+        # the very identifier that made an exact candidate relevant. Keep the
+        # complete source available for table packaging and exact protection.
+        if exact_query and identifiers and not all(
+            identifier in passage.casefold() for identifier in identifiers
+        ):
+            passage = original[: max(6000, int(os.getenv("RK_EXACT_SOURCE_CHARS", "6000")))]
+        result.append(
+            {
+                **document,
+                "content": passage,
+                "full_content": original,
+                "lexical_score": score,
+            }
+        )
+    return result
 
 
 def _passage_tokens(text: str) -> list[str]:
@@ -620,7 +768,7 @@ async def fuse_vector_and_lexical_chunks(
         logger.warning("Lexical retrieval disabled: chunk store not found at %s", store_path)
         return vector_chunks
 
-    candidate_k = retrieval_candidate_k(requested_top_k)
+    candidate_k = retrieval_candidate_k(requested_top_k, query)
     lexical_chunks = await asyncio.to_thread(_bm25, query, store_path, candidate_k)
     rrf_k = float(os.getenv("RK_RRF_K", "60"))
     profile, vector_weight, lexical_weight = query_aware_rrf_weights(query)
@@ -637,7 +785,9 @@ async def fuse_vector_and_lexical_chunks(
         chunk_id = str(chunk["chunk_id"])
         if chunk_id not in fused:
             fused[chunk_id] = {
+                **chunk,
                 "content": chunk["content"],
+                "full_content": chunk.get("full_content", chunk["content"]),
                 "created_at": chunk.get("created_at", chunk.get("create_time")),
                 "file_path": chunk.get("file_path", "unknown_source"),
                 "source_type": "lexical",
@@ -648,6 +798,9 @@ async def fuse_vector_and_lexical_chunks(
             # bounded lexical passage for reranking and generation so a large
             # P! chunk cannot consume the complete evidence budget.
             fused[chunk_id]["content"] = chunk["content"]
+            fused[chunk_id]["full_content"] = chunk.get(
+                "full_content", fused[chunk_id].get("full_content", chunk["content"])
+            )
         fused[chunk_id]["lexical_score"] = chunk.get("lexical_score")
         fused[chunk_id]["lexical_rank"] = rank
         scores[chunk_id] += lexical_weight / (rrf_k + rank)

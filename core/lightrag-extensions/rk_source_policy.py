@@ -134,8 +134,6 @@ def _compact_diagnostic_table(query: str, content: str) -> str | None:
     rows containing the strongest identifier match.  Ambiguous/no-match tables
     remain untouched.
     """
-    if not any(term in query.casefold() for term in _DIAGNOSTIC_QUERY_TERMS):
-        return None
     query_terms = _diagnostic_query_identifiers(query)
     if not query_terms:
         return None
@@ -149,7 +147,7 @@ def _compact_diagnostic_table(query: str, content: str) -> str | None:
         # inside a <table format="json"> element. Decode those matrices so a
         # matching diagnostic row does not expose neighbouring test items to
         # the small answer model.
-        json_rows: list[tuple[str, list[Any]]] = []
+        json_tables: list[list[list[Any]]] = []
         for match in re.finditer(
             r'<table\b[^>]*\bformat=["\']json["\'][^>]*>(.*?)</table>',
             content,
@@ -161,21 +159,40 @@ def _compact_diagnostic_table(query: str, content: str) -> str | None:
                 continue
             if not isinstance(matrix, list):
                 continue
-            for row in matrix:
-                if isinstance(row, list):
-                    json_rows.append((json.dumps(row, ensure_ascii=False), row))
-        if not json_rows:
+            table_rows = [row for row in matrix if isinstance(row, list)]
+            if table_rows:
+                json_tables.append(table_rows)
+        if not json_tables:
             return None
-        scored_json = []
-        for rendered, row in json_rows:
-            folded = rendered.casefold()
-            hits = {term for term in query_terms if term in folded}
-            scored_json.append((len(hits), row))
-        best_score = max(score for score, _ in scored_json)
-        if best_score <= 0:
+        scored_tables = []
+        for table_index, table_rows in enumerate(json_tables):
+            rendered_rows = [json.dumps(row, ensure_ascii=False).casefold() for row in table_rows]
+            coverage = {
+                term for term in query_terms if any(term in row for row in rendered_rows)
+            }
+            # Prefer a table that carries an explicit schema/header when two
+            # tables repeat the same model identifiers (for example an ADC
+            # code table next to a reset-current table).
+            has_schema = any(
+                any(label in row for label in ("pmic", "型号", "电流", "current", "tps", "ttft"))
+                for row in rendered_rows
+            )
+            scored_tables.append((len(coverage), int(has_schema), table_index, coverage))
+        best_score = max((score, schema) for score, schema, _, _ in scored_tables)
+        if best_score[0] <= 0:
             return None
-        selected_json = [row for score, row in scored_json if score == best_score]
-        if len(selected_json) == len(json_rows):
+        _, _, selected_index, _ = max(
+            scored_tables,
+            key=lambda value: (value[0], value[1], -value[2]),
+        )
+        selected_table = json_tables[selected_index]
+        selected_json = []
+        for row in selected_table:
+            rendered = json.dumps(row, ensure_ascii=False).casefold()
+            is_schema = any(label in rendered for label in ("pmic", "型号", "电流", "current", "tps", "ttft"))
+            if is_schema or any(term in rendered for term in query_terms):
+                selected_json.append(row)
+        if not selected_json:
             return None
         return '<table format="json">' + json.dumps(
             selected_json, ensure_ascii=False
@@ -260,6 +277,54 @@ def _table_evidence_boost(query: str, content: str) -> float:
     if _compact_metric_table(query, content) is None:
         return 1.0
     return float(os.getenv("RK_TABLE_EVIDENCE_BOOST", "1.5"))
+
+
+def _expand_parent_table(query: str, item: dict[str, Any]) -> dict[str, Any] | None:
+    """Expand a matching PDF table to title/header/all-row parent evidence.
+
+    The import is lazy so old board deployments remain compatible until the
+    companion ``rk_table_parent.py`` is installed.
+    """
+    if not item.get("table_parent"):
+        return None
+    try:
+        from rk_table_parent import expand_table_parent
+    except ImportError:
+        return None
+    return expand_table_parent(query, item)
+
+
+def _restore_parent_table_metadata(item: dict[str, Any]) -> None:
+    """Restore sidecar metadata dropped by LightRAG's merge/rerank paths."""
+    if item.get("table_parent") or "-table-" not in str(item.get("chunk_id") or ""):
+        return
+    try:
+        from rk_table_parent import extract_table_parents
+        tables = extract_table_parents(
+            str(item.get("full_content") or item.get("content") or "")
+        )
+    except ImportError:
+        return
+    if tables:
+        item["table_parent"] = True
+        item["table_type"] = tables[0]["table_type"]
+
+
+def _matching_parent_tables(query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Prefer typed parent tables over ordinary chunks after reranking."""
+    try:
+        from rk_table_parent import table_query_type
+    except ImportError:
+        return []
+    expected = table_query_type(query)
+    if expected is None:
+        return []
+    matching = []
+    for item in chunks:
+        _restore_parent_table_metadata(item)
+        if item.get("table_parent") and item.get("table_type") == expected:
+            matching.append(item)
+    return matching
 
 
 def _source_family(chunk: dict[str, Any]) -> str:
@@ -350,6 +415,7 @@ def apply_source_authority_policy(
     adjusted = []
     for index, chunk in enumerate(chunks):
         item = chunk.copy()
+        _restore_parent_table_metadata(item)
         raw_score = item.get("rerank_score")
         if raw_score is None:
             adjusted.append((index, item))
@@ -361,6 +427,20 @@ def apply_source_authority_policy(
             penalty *= derived_penalty
             item["source_authority"] = "derived"
         content = str(item.get("content") or "")
+        full_content = str(item.get("full_content") or "")
+        # Exact queries must inspect the source chunk before the lexical
+        # passage window.  The window is allowed to omit the model/PMIC row,
+        # while the source still contains the evidence needed by table and
+        # section compaction.
+        source_identifiers = _diagnostic_query_identifiers(query)
+        if full_content and source_identifiers:
+            content = full_content
+        parent_table = _expand_parent_table(query, item)
+        if parent_table:
+            item = parent_table
+            item["table_parent_expanded"] = True
+            content = str(item.get("content") or "")
+            full_content = content
         named_item, named_match_count = _compact_named_numbered_item(query, content)
         if named_item:
             item["content"] = named_item
@@ -374,7 +454,7 @@ def apply_source_authority_policy(
             item["named_section_match_count"] = section_match_count
             content = compact_section
         compact_diagnostic = _compact_diagnostic_table(query, content)
-        if compact_diagnostic:
+        if compact_diagnostic and not item.get("table_parent"):
             item["content"] = compact_diagnostic
             item["diagnostic_table_compacted"] = True
             content = compact_diagnostic
@@ -387,7 +467,7 @@ def apply_source_authority_policy(
         exact_hits = sum(1 for term in exact_terms if term in folded_content)
         exact_boost = 1.0 + min(exact_hits, 3) * boost_per_term if exact_hits >= 2 else 1.0
         table_boost = _table_evidence_boost(query, content)
-        if table_boost > 1.0:
+        if table_boost > 1.0 and not item.get("table_parent"):
             compact_table = _compact_metric_table(query, content)
             if compact_table:
                 item["content"] = compact_table
@@ -403,6 +483,11 @@ def apply_source_authority_policy(
         key=lambda pair: (-float(pair[1].get("rerank_score", 0.0)), pair[0])
     )
     ranked = [item for _, item in adjusted]
+    typed_parents = _matching_parent_tables(query, ranked)
+    if typed_parents:
+        # The parent contains the schema and all rows; retaining unrelated
+        # prose or a different table type only reintroduces column pollution.
+        return typed_parents
     named_matches = [
         max(
             int(item.get("named_item_match_count", 0)),

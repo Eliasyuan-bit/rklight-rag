@@ -25,6 +25,79 @@ _BROAD_QUERY_TERMS = (
     "包括哪些",
     "具体内容",
 )
+_IDENTIFIER_RE = re.compile(r"[a-z][a-z0-9]*(?:[._/:+-][a-z0-9]+)+", re.IGNORECASE)
+_ASCII_TERM_RE = re.compile(r"[a-z][a-z0-9_-]{1,}", re.IGNORECASE)
+
+
+def _unit_direct_match_score(query: str, unit: dict[str, Any]) -> int:
+    """Score deterministic query coverage before spending a reranker slot.
+
+    The second-stage candidate budget is intentionally small on the board.
+    Taking units in document order meant that a useful row near the end of a
+    long chunk could never reach the reranker.  This is not a relevance score
+    and does not replace the reranker: it merely guarantees that explicitly
+    named identifiers and table fields are eligible to be scored.
+    """
+    folded_query = query.casefold()
+    text = (str(unit.get("text") or "") + "\n" + str(unit.get("table_header") or "")).casefold()
+    score = 0
+    identifiers = set(_IDENTIFIER_RE.findall(folded_query))
+    for identifier in identifiers:
+        if identifier in text:
+            score += 12
+    for term in set(_ASCII_TERM_RE.findall(folded_query)):
+        if term in text:
+            score += 3
+    chinese = "".join(re.findall(r"[\u3400-\u9fff]", query))
+    for index in range(max(0, len(chinese) - 1)):
+        if chinese[index : index + 2] in text:
+            score += 1
+    if unit.get("kind") in {"table_row", "json_table_row"} and score:
+        score += 2
+    return score
+
+
+def _select_candidate_units(
+    chunks: list[dict[str, Any]], query: str, max_per_chunk: int, max_candidates: int
+) -> list[dict[str, Any]]:
+    """Admit evidence units by direct coverage, then distribute budget fairly.
+
+    Candidate admission is deliberately independent from neural reranking.
+    Each chunk contributes its strongest directly matching units, and a
+    round-robin merge prevents an early verbose chunk from consuming the
+    global budget.  Ties retain source order so ordinary narrative questions
+    preserve their previous behaviour.
+    """
+    buckets: list[list[dict[str, Any]]] = []
+    for chunk_index, chunk in enumerate(chunks):
+        units = split_evidence_units(str(chunk.get("content") or ""))
+        ranked = []
+        for unit in units:
+            candidate = unit.copy()
+            candidate["chunk_index"] = chunk_index
+            candidate["direct_match_score"] = _unit_direct_match_score(query, candidate)
+            ranked.append(candidate)
+        ranked.sort(
+            key=lambda unit: (-int(unit["direct_match_score"]), int(unit["index"]))
+        )
+        if ranked:
+            buckets.append(ranked[:max_per_chunk])
+
+    candidates: list[dict[str, Any]] = []
+    depth = 0
+    while len(candidates) < max_candidates:
+        added = False
+        for bucket in buckets:
+            if depth >= len(bucket):
+                continue
+            candidates.append(bucket[depth])
+            added = True
+            if len(candidates) >= max_candidates:
+                break
+        if not added:
+            break
+        depth += 1
+    return candidates
 
 
 def _enabled() -> bool:
@@ -62,7 +135,13 @@ def split_evidence_units(content: str) -> list[dict[str, Any]]:
             return "", ""
         return " > ".join(item[1] for item in headings), headings[-1][2]
 
-    def add(text: str, kind: str, *, table_header: str = "") -> None:
+    def add(
+        text: str,
+        kind: str,
+        *,
+        table_header: str = "",
+        table_caption: str = "",
+    ) -> None:
         nonlocal index
         text = text.strip()
         if not text:
@@ -77,6 +156,7 @@ def split_evidence_units(content: str) -> list[dict[str, Any]]:
                 "section_path": section_path,
                 "heading": heading,
                 "table_header": table_header,
+                "table_caption": table_caption,
                 "start": start,
                 "end": start + len(text) if start >= 0 else -1,
             }
@@ -119,6 +199,11 @@ def split_evidence_units(content: str) -> list[dict[str, Any]]:
             continue
         if "<table" in stripped.casefold():
             flush_paragraph()
+            caption = ""
+            if units and units[-1]["kind"] == "sentence":
+                possible_caption = str(units[-1]["text"]).strip()
+                if len(possible_caption) <= 160 and not re.search(r"[。！？.!?]$", possible_caption):
+                    caption = possible_caption
             block = [line]
             line_index += 1
             while line_index < len(lines) and "</table>" not in "\n".join(block).casefold():
@@ -141,12 +226,18 @@ def split_evidence_units(content: str) -> list[dict[str, Any]]:
                             json.dumps(row, ensure_ascii=False),
                             "json_table_row",
                             table_header=json_table.group(1),
+                            table_caption=caption,
                         )
                     continue
             add(table_text, "table")
             continue
         if stripped.startswith("|") and stripped.endswith("|"):
             flush_paragraph()
+            caption = ""
+            if units and units[-1]["kind"] == "sentence":
+                possible_caption = str(units[-1]["text"]).strip()
+                if len(possible_caption) <= 160 and not re.search(r"[。！？.!?]$", possible_caption):
+                    caption = possible_caption
             table_lines = []
             while line_index < len(lines):
                 candidate = lines[line_index].strip()
@@ -159,7 +250,7 @@ def split_evidence_units(content: str) -> list[dict[str, Any]]:
             else:
                 header = "\n".join(table_lines[:2])
                 for row in table_lines[2:]:
-                    add(row, "table_row", table_header=header)
+                    add(row, "table_row", table_header=header, table_caption=caption)
             continue
         if _LIST_RE.match(line):
             flush_paragraph()
@@ -237,12 +328,17 @@ def _reconstruct(units: list[dict[str, Any]]) -> str:
     output: list[str] = []
     emitted_headings: set[str] = set()
     emitted_table_headers: set[str] = set()
+    emitted_table_captions: set[str] = set()
     for unit in sorted(units, key=lambda value: int(value["index"])):
         heading = str(unit.get("heading") or "")
         if heading and heading not in emitted_headings:
             output.append(heading)
             emitted_headings.add(heading)
         table_header = str(unit.get("table_header") or "")
+        table_caption = str(unit.get("table_caption") or "")
+        if table_caption and table_caption not in emitted_table_captions:
+            output.append(table_caption)
+            emitted_table_captions.add(table_caption)
         if unit.get("kind") == "json_table_row" and table_header:
             output.append(f"{table_header}[{unit['text']}]</table>")
             continue
@@ -260,25 +356,21 @@ async def refine_evidence_units(
     if not _enabled() or not query.strip() or not chunks:
         return chunks
 
+    # Parent tables are already the smallest complete evidence unit: title,
+    # schema and rows must travel together.  Splitting one into row units
+    # removes the column names and causes a small generator to shift values.
+    if any(chunk.get("table_parent") for chunk in chunks):
+        return chunks
+
     min_chars = max(0, int(os.getenv("RK_EVIDENCE_MIN_TOTAL_CHARS", "240")))
     if sum(len(str(chunk.get("content") or "")) for chunk in chunks) < min_chars:
         return chunks
 
     max_candidates = max(1, int(os.getenv("RK_EVIDENCE_MAX_CANDIDATES", "24")))
     max_per_chunk = max(1, int(os.getenv("RK_EVIDENCE_MAX_UNITS_PER_CHUNK", "8")))
-    candidates: list[dict[str, Any]] = []
-    for chunk_index, chunk in enumerate(chunks):
-        units = split_evidence_units(str(chunk.get("content") or ""))
-        # A verbose top passage must not consume the whole candidate budget;
-        # preserve coverage across the already reranked chunk list.
-        for unit in units[:max_per_chunk]:
-            candidate = unit.copy()
-            candidate["chunk_index"] = chunk_index
-            candidates.append(candidate)
-            if len(candidates) >= max_candidates:
-                break
-        if len(candidates) >= max_candidates:
-            break
+    candidates = _select_candidate_units(
+        chunks, query, max_per_chunk=max_per_chunk, max_candidates=max_candidates
+    )
 
     minimum_units = max(2, int(os.getenv("RK_EVIDENCE_MIN_UNITS", "3")))
     if len(candidates) < minimum_units:

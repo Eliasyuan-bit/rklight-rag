@@ -21,6 +21,23 @@ def load_module():
 
 
 class LexicalRetrievalTest(unittest.TestCase):
+
+    def test_index_normalizes_any_spaced_technical_identifier(self):
+        module = load_module()
+        indexed = module._index_text(
+            "Qwen 2.5 7B uses RKNN 3 SDK with DDR 4", "server_config"
+        )
+        self.assertIn("qwen257b", indexed)
+        self.assertIn("rknn3sdk", indexed)
+        self.assertIn("ddr4", indexed)
+        self.assertIn("服务器 配置 推荐", indexed)
+
+    def test_spaced_and_punctuated_identifier_share_bm25_token(self):
+        module = load_module()
+        query_tokens = set(module._tokens("Qwen2.5-7B"))
+        source_tokens = set(module._tokens(module._index_text("Qwen 2.5 7B")))
+        self.assertIn("qwen257b", query_tokens)
+        self.assertIn("qwen257b", source_tokens)
     def test_trace_logs_rank_metadata_without_query_or_content(self):
         module = load_module()
         messages = []
@@ -205,6 +222,9 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
     def test_candidate_pool_never_shrinks_requested_top_k(self):
         module = load_module()
         self.assertGreaterEqual(module.retrieval_candidate_k(12), 12)
+        self.assertGreaterEqual(
+            module.retrieval_candidate_k(3, "Qwen2.5-7B的性能数据是多少？"), 12
+        )
 
     def test_domain_query_expansion_adds_source_identifiers(self):
         module = load_module()
@@ -260,6 +280,10 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
             module.query_retrieval_profile("burn_stress版本如何输出"), "exact"
         )
         self.assertEqual(
+            module.query_retrieval_profile("IS6608A 和 MPQ8655 的电流基准是多少"),
+            "exact",
+        )
+        self.assertEqual(
             module.query_retrieval_profile("介绍一下压力测试的整体原理"),
             "semantic",
         )
@@ -307,6 +331,64 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
             "burn_stress版本如何输出", chunks, requested_top_k=1
         )
         self.assertEqual([item["chunk_id"] for item in result], ["command"])
+        self.assertTrue(result[0]["exact_retrieval_protected"])
+
+    def test_exact_protection_prefers_named_evidence_over_generic_lexical_top(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "generic-performance",
+                "content": "性能测试章节说明，包含多个模型与通用指标。",
+                "rerank_score": 0.99,
+                "retrieval_rank": 1,
+                "lexical_rank": 1,
+            },
+            {
+                "chunk_id": "qwen-row",
+                "content": (
+                    "LLM Model Performance\n"
+                    "ModelName TTFT TPS\n"
+                    "Qwen2.5-7B 162.25ms 70.47"
+                ),
+                "rerank_score": 0.30,
+                "retrieval_rank": 2,
+                "lexical_rank": 2,
+            },
+        ]
+
+        result = module.fuse_query_aware_rerank(
+            "Qwen2.5-7B的性能数据是多少？", chunks, requested_top_k=1
+        )
+
+        self.assertEqual([item["chunk_id"] for item in result], ["qwen-row"])
+        self.assertTrue(result[0]["exact_retrieval_protected"])
+        self.assertEqual(result[0]["exact_evidence_coverage"], 1)
+        self.assertIn("qwen2.5-7b", result[0]["exact_evidence_identifiers"])
+
+    def test_exact_protection_uses_full_content_when_passage_was_clipped(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "table",
+                "content": "性能说明（型号行已被窗口裁掉）",
+                "full_content": "LLM Model Performance Qwen3-4B TTFT 109.78 TPOT 11.30 TPS 88.47",
+                "rerank_score": 0.20,
+                "retrieval_rank": 1,
+                "lexical_rank": 2,
+            },
+            {
+                "chunk_id": "generic",
+                "content": "Qwen 模型性能概览",
+                "full_content": "Qwen 模型性能概览",
+                "rerank_score": 0.90,
+                "retrieval_rank": 2,
+                "lexical_rank": 1,
+            },
+        ]
+        result = module.fuse_query_aware_rerank(
+            "Qwen3-4B的性能数据是多少？", chunks, requested_top_k=1
+        )
+        self.assertEqual(result[0]["chunk_id"], "table")
         self.assertTrue(result[0]["exact_retrieval_protected"])
 
 
