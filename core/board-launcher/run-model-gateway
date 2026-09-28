@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+app_root=${RK_LIGHTRAG_ROOT:-/userdata/rklight-rag}
+gateway_root="$app_root/core/model-gateway"
+work_dir="$app_root/runtime/tmp"
+mkdir -p "$work_dir"
+export TMPDIR="$work_dir" TMP="$work_dir" TEMP="$work_dir"
+set -a
+. "$gateway_root/deploy/rk3588.env"
+set +a
+exec python3 "$gateway_root/rk1828_model_gateway.py"

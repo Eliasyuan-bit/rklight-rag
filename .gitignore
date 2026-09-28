@@ -19,3 +19,13 @@ third_party/pdfium/
 third_party/bun/
 core/document-vision/build-rk3588/
 core/document-vision/dist/
+
+# Private source manuals and local request captures are backed up separately.
+/UCM630x-Series-User-Manual.md
+/UCM630x-Series-User-Manual.pdf
+/00_Rockchip_RKNPU3_ReleaseNote_RKNN3_SDK_V1.0.4_EN.pdf
+/repeat-request.json
+/no-repeat-request.json
+
+# Spreadsheet lock files are transient editor state.
+~$*

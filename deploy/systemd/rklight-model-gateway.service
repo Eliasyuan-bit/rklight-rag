@@ -1,0 +1,15 @@
+[Unit]
+Description=RKLightRAG model gateway
+After=local-fs.target rknn3.service
+RequiresMountsFor=/userdata
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/sh /userdata/rklight-rag/bin/run-model-gateway
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=240
+
+[Install]
+WantedBy=multi-user.target

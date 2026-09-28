@@ -10,6 +10,8 @@ RK3588 CPU 上的 TableFormer 表格解析工具见 [TableFormer CPU 说明](doc
 
 日常部署脚本说明见 [scripts/README.md](scripts/README.md)。
 
+构建、传输和板端运行文件的存放规则见 [存储路径约定](docs/storage-paths.md)；项目临时文件不写入 `/tmp`，现有知识库不参与固件清理或覆盖。
+
 ## 一、总体架构
 
 ![总体架构](docs/assert/architecture.png)

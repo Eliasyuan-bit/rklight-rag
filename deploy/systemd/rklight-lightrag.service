@@ -1,0 +1,16 @@
+[Unit]
+Description=RKLightRAG API and WebUI
+After=rklight-model-gateway.service
+Requires=rklight-model-gateway.service
+RequiresMountsFor=/userdata
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/sh /userdata/rklight-rag/bin/run-lightrag
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=240
+
+[Install]
+WantedBy=multi-user.target

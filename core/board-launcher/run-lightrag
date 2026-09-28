@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+app_root=${RK_LIGHTRAG_ROOT:-/userdata/rklight-rag}
+work_dir="$app_root/runtime/tmp"
+mkdir -p "$work_dir"
+export TMPDIR="$work_dir" TMP="$work_dir" TEMP="$work_dir"
+cd "$app_root"
+set -a
+. "$app_root/config/lightrag.env"
+. "$app_root/config/pdf-parser.env"
+set +a
+exec "$app_root/venv/bin/lightrag-server" --host "${HOST:-0.0.0.0}" --port "${PORT:-9621}"

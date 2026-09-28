@@ -1,0 +1,1455 @@
+diff --git a/lightrag/api/lightrag_server.py b/lightrag/api/lightrag_server.py
+index a3c57f6..c681669 100644
+--- a/lightrag/api/lightrag_server.py
++++ b/lightrag/api/lightrag_server.py
+@@ -12,6 +12,8 @@ from fastapi.openapi.docs import (
+ import asyncio
+ import json
+ import os
++from lightrag.rk_ingest_model_mode import model_transition_active
++# RK_MODEL_TRANSITION_STATUS_V1
+ import re
+ import logging
+ import logging.config
+@@ -2678,7 +2680,9 @@ def create_app(args):
+             # One DictProxy RPC in multi-worker mode; keep /health read-only and
+             # avoid one cross-process ``get`` per field.
+             pipeline_snapshot = pipeline_status.copy()
+-            pipeline_busy = bool(pipeline_snapshot.get("busy", False))
++            pipeline_busy = bool(
++                pipeline_snapshot.get("busy", False) or model_transition_active()
++            )
+             pipeline_scanning = bool(pipeline_snapshot.get("scanning", False))
+             pipeline_destructive_busy = bool(
+                 pipeline_snapshot.get("destructive_busy", False)
+diff --git a/lightrag/api/routers/document_routes.py b/lightrag/api/routers/document_routes.py
+index c380a1d..239100b 100644
+--- a/lightrag/api/routers/document_routes.py
++++ b/lightrag/api/routers/document_routes.py
+@@ -8,6 +8,8 @@ import binascii
+ import errno
+ import math
+ import os
++from lightrag.rk_ingest_model_mode import model_transition_active
++# RK_MODEL_TRANSITION_STATUS_V1
+ import re
+ import shutil
+ import sqlite3
+@@ -163,6 +165,16 @@ temp_prefix = "__tmp__"
+ UNKNOWN_FILE_SOURCE = "unknown_source"
+ LEGACY_EMPTY_FILE_PATH_SENTINELS = {"", "no-file-path"}
+ ARCHIVED_FILE_SUFFIX_RE = re.compile(r"_(?:\d{3}|\d{10,})$")
++# RK3588_SELECTIVE_DOCUMENT_GROUPING_HOOK
++SELECTIVE_SOURCE_RE = re.compile(r"<!--\s*source:\s*(.+?);\s*route:\s*(?:kg|text-only)\s*-->", re.I)
++
++def selective_source(doc):
++    summary = doc.get("content_summary", "") if isinstance(doc, dict) else getattr(doc, "content_summary", "")
++    metadata = doc.get("metadata", {}) if isinstance(doc, dict) else (getattr(doc, "metadata", {}) or {})
++    if str((metadata or {}).get("process_options", "")) not in {"P", "P!"}:
++        return None
++    match = SELECTIVE_SOURCE_RE.search(str(summary or ""))
++    return match.group(1).strip() if match else None
+ 
+ # ``Retry-After`` hint on an admission 429. Capacity frees up when a document
+ # finishes processing, which is a document-scale wait, not a request-scale one —
+@@ -5462,6 +5474,47 @@ def create_document_routes(
+                     detail=f"File too large. Maximum size: {global_args.max_upload_size / 1024 / 1024:.1f}MB, uploaded: {bytes_written / 1024 / 1024:.1f}MB",
+                 )
+ 
++            # RK3588_SELECTIVE_MARKDOWN_UPLOAD_HOOK
++            # Plain Markdown is split into LightRAG-native P/P! sources before
++            # enqueueing.  Explicit parser hints remain an expert override.
++            index_paths = [file_path]
++            if safe_filename.lower().endswith(".md") and ".[" not in safe_filename:
++                from .selective_ingest_router import route_markdown_file
++
++                # Keep audit manifests outside INPUT_DIR: the latter is owned
++                # by LightRAG's scanner and must contain indexable sources
++                # only.
++                route_dir = doc_manager.input_dir.parent / "route_manifests" / uuid4().hex
++                try:
++                    index_paths, manifest_path, route_manifest = route_markdown_file(
++                        file_path, route_dir
++                    )
++                    if not index_paths:
++                        raise ValueError("Markdown has no indexable blocks after routing")
++                    routed_input_paths = []
++                    for routed_path in index_paths:
++                        target = doc_manager.input_dir / routed_path.name
++                        if target.exists():
++                            raise FileExistsError(f"Routed upload already exists: {target.name}")
++                        shutil.move(str(routed_path), str(target))
++                        routed_input_paths.append(target)
++                    index_paths = routed_input_paths
++                    file_path.unlink()
++                    logger.info(
++                        "[selective-ingest] %s -> %s (kg=%s, text_only=%s)",
++                        safe_filename,
++                        [path.name for path in index_paths],
++                        route_manifest["block_counts"]["kg"],
++                        route_manifest["block_counts"]["text_only"],
++                    )
++                except Exception:
++                    # Do not leave a half-routed source in INPUT_DIR.  The
++                    # outer error handling returns the failure to the caller.
++                    for routed_path in index_paths:
++                        if routed_path != file_path:
++                            routed_path.unlink(missing_ok=True)
++                    raise
++
+             track_id = generate_track_id("upload")
+ 
+             # Bg task: enqueue + trigger processing, then release the slot.
+@@ -5478,12 +5531,17 @@ def create_document_routes(
+                 # cancellation therefore cannot strand the enqueue slot.
+                 started.set()
+                 try:
+-                    await pipeline_index_file(
+-                        rag,
+-                        file_path,
+-                        track_id,
+-                        admission_token=enqueue_token,
+-                    )
++                    # RK3588_SELECTIVE_MARKDOWN_UPLOAD_INDEX_LOOP
++                    # A routed Markdown upload has two independent LightRAG
++                    # sources.  Use one track id so the UI can follow the
++                    # upload as a single user operation.
++                    for path_index, index_path in enumerate(index_paths):
++                        await pipeline_index_file(
++                            rag,
++                            index_path,
++                            track_id,
++                            admission_token=enqueue_token if path_index == 0 else None,
++                        )
+                 finally:
+                     await _release_enqueue_slot(rag, enqueue_token)
+ 
+@@ -6181,6 +6239,12 @@ def create_document_routes(
+                 # values individually through the mapping protocol.
+                 status_dict = pipeline_status.copy()
+ 
++            # The core pipeline may release its ingestion slot before the
++            # single-card gateway finishes restoring query workers. Keep the
++            # presentation status active without changing pipeline admission.
++            if model_transition_active():
++                status_dict["busy"] = True
++
+             # Sanitized fence projection BEFORE the internal fields are dropped
+             # (``recovery_required`` is one of them): an operator needs a
+             # read-only way to see that the workspace is fenced, its coarse cause
+@@ -6403,6 +6467,18 @@ def create_document_routes(
+         from lightrag.kg.shared_storage import start_reserved_background_task
+ 
+         doc_ids = delete_request.doc_ids
++        # Selecting the user-visible KG row must also delete its P! sibling.
++        expanded_doc_ids = list(doc_ids)
++        selected_docs = await rag.aget_docs_by_ids(doc_ids)
++        for _, selected in selected_docs.items():
++            source = selective_source(selected)
++            track_id = selected.get("track_id") if isinstance(selected, dict) else getattr(selected, "track_id", None)
++            if not source or not track_id:
++                continue
++            for sibling_id, sibling in (await rag.aget_docs_by_track_id(track_id)).items():
++                if selective_source(sibling) == source and sibling_id not in expanded_doc_ids:
++                    expanded_doc_ids.append(sibling_id)
++        doc_ids = expanded_doc_ids
+ 
+         # Owner token for the destructive slot, generated before any await so the
+         # finally can release it by owner even if the acquire is cancelled.
+@@ -6723,6 +6799,36 @@ def create_document_routes(
+                     )
+                 )
+ 
++            # Collapse P/P! siblings into their one user-visible source.
++            grouped = {}
++            passthrough = []
++            for item in doc_responses:
++                source = selective_source(item)
++                if not source:
++                    passthrough.append(item)
++                    continue
++                group = grouped.setdefault(source, [])
++                group.append(item)
++            for source, members in grouped.items():
++                primary = next((item for item in members if str((item.metadata or {}).get("process_options")) == "P"), members[0])
++                rank = {"failed": 4, "processing": 3, "pending": 2, "processed": 1}
++                status_member = max(members, key=lambda item: rank.get(str(item.status).lower().split(".")[-1], 0))
++                metadata = dict(primary.metadata or {})
++                metadata["selective_route"] = {"source": source, "internal_doc_ids": [item.id for item in members], "parts": len(members)}
++                passthrough.append(DocStatusResponse(
++                    id=primary.id, content_summary=primary.content_summary,
++                    content_length=sum(item.content_length for item in members), status=status_member.status,
++                    created_at=min(item.created_at for item in members), updated_at=max(item.updated_at for item in members),
++                    track_id=primary.track_id, chunks_count=sum(item.chunks_count or 0 for item in members),
++                    error_msg=status_member.error_msg, metadata=metadata, file_path=source,
++                ))
++            doc_responses = passthrough
++            total_count = len(doc_responses)
++            status_counts = {}
++            for item in doc_responses:
++                key = str(item.status).lower().split(".")[-1]
++                status_counts[key] = status_counts.get(key, 0) + 1
++
+             # Calculate pagination info
+             total_pages = (total_count + request.page_size - 1) // request.page_size
+             has_next = request.page < total_pages
+diff --git a/lightrag/api/routers/query_routes.py b/lightrag/api/routers/query_routes.py
+index 6be8544..936f396 100644
+--- a/lightrag/api/routers/query_routes.py
++++ b/lightrag/api/routers/query_routes.py
+@@ -6,7 +6,10 @@ import asyncio
+ import json
+ import time
+ from typing import Any, Dict, List, Literal, Optional
+-from fastapi import APIRouter, Depends
++from fastapi import APIRouter, Depends, HTTPException, Request
++from datetime import datetime, timezone
++from uuid import uuid4
++import os
+ from lightrag.base import QueryParam
+ from lightrag.api.input_limits import count_conversation_input_chars
+ from lightrag.api.utils_api import get_combined_auth_dependency, internal_server_error
+@@ -23,6 +26,16 @@ from lightrag.constants import (
+     MAX_ROLE_CHARS,
+ )
+ from lightrag.utils import logger
++from lightrag.rk_reference_markdown import render_reference_markdown
++from lightrag.rk_chunk_citations import enrich_reference_locations
++# RK3588_REFERENCE_LOCATION_V1
++from lightrag.rk_reference_preview import (
++    build_reference_preview, group_footer_references,
++    render_reference_document, valid_chunk_id,
++# RK3588_DOCUMENT_REFERENCE_FOOTER_V1
++)
++# RK3588_REFERENCE_PREVIEW_V2
++# RK3588_REFERENCE_FOOTER_V1
+ from pydantic import BaseModel, Field, field_validator, model_validator
+ 
+ 
+@@ -34,9 +47,10 @@ class QueryRequest(BaseModel):
+     )
+ 
+     mode: Literal["local", "global", "hybrid", "naive", "mix", "bypass"] = Field(
+-        default="mix",
++        default=os.getenv("RK_DEFAULT_QUERY_MODE", "naive"),
+         description="Query mode",
+     )
++    # RK3588_DEFAULT_QUERY_MODE_V5
+ 
+     only_need_context: Optional[bool] = Field(
+         default=None,
+@@ -108,7 +122,7 @@ class QueryRequest(BaseModel):
+     )
+ 
+     user_prompt: Optional[str] = Field(
+-        default=None,
++        default=os.getenv("RK_DEFAULT_USER_PROMPT") or None,
+         max_length=MAX_QUERY_CHARS,
+         description="User-provided prompt for the query. If provided, this will be used instead of the default value from prompt template.",
+     )
+@@ -143,6 +157,18 @@ class QueryRequest(BaseModel):
+         description="If True, enables streaming output. Defaults to False for /query, True for /query/stream.",
+     )
+ 
++    @field_validator("user_prompt", mode="before")
++    @classmethod
++    def normalize_blank_user_prompt(cls, value: object) -> object:
++        # Browsers serialize an empty input as an explicit empty string, which
++        # would otherwise override the field default. Normalize at the API
++        # boundary so prompt rendering, cache identity and token accounting all
++        # observe the same configured value.
++        if value is None or (isinstance(value, str) and not value.strip()):
++            return os.getenv("RK_DEFAULT_USER_PROMPT") or None
++        return value
++
++    # RK3588_QUERY_PROMPT_NORMALIZATION_V1
+     @field_validator("query", mode="after")
+     @classmethod
+     def query_strip_after(cls, query: str) -> str:
+@@ -229,6 +255,33 @@ class QueryRequest(BaseModel):
+ 
+         # Ensure `mode` and `stream` are set explicitly
+         param = QueryParam(**request_data)
++        if param.mode == "mix":
++            # RK1828's query role is capped at 128 output tokens. Reserve the
++            # remaining 4K window for both KG and source chunks even when a
++            # browser still carries the legacy 2800-token UI setting.
++            param.max_total_tokens = int(
++                os.getenv("RK_MIX_MAX_TOTAL_TOKENS", "3600")
++            )
++            # Keep enough of that budget for raw source chunks. A larger KG
++            # top-k can otherwise consume the whole prompt before chunks are
++            # rendered, which is especially harmful for command/how-to docs.
++            param.top_k = min(param.top_k or 6, 6)
++            param.chunk_top_k = min(param.chunk_top_k or 3, 3)
++            param.max_entity_tokens = min(param.max_entity_tokens or 500, 500)
++            param.max_relation_tokens = min(param.max_relation_tokens or 300, 300)
++            # Direct diagnostic and exact lexical questions are grounded by
++            # source passages. Broad graph descriptions can attach a related
++            # but unsupported command or test item, especially with a 2B
++            # answer model, so do not render KG records for these query types.
++            from lightrag.rk_lexical_retrieval import query_retrieval_profile
++            diagnostic_terms = ("错误", "故障", "失败", "异常", "为什么", "原因")
++            if (
++                any(term in self.query.casefold() for term in diagnostic_terms)
++                or query_retrieval_profile(self.query)
++                in ("exact", "document_fact")
++            ):
++                param.max_entity_tokens = 0
++                param.max_relation_tokens = 0
+         param.stream = is_stream
+         return param
+ 
+@@ -238,6 +291,19 @@ class ReferenceItem(BaseModel):
+ 
+     reference_id: str = Field(description="Unique reference identifier")
+     file_path: str = Field(description="Path to the source file")
++    chunk_id: Optional[str] = Field(
++        default=None,
++        description="Exact evidence chunk identifier",
++    )
++    section: Optional[str] = Field(
++        default=None,
++        description="Markdown section containing the evidence",
++    )
++    evidence_location: Optional[str] = Field(
++        default=None,
++        description="Structured section or table-row location for the evidence",
++    )
++    # RK3588_CHUNK_CITATION_FIELDS_V2
+     content: Optional[List[str]] = Field(
+         default=None,
+         description="List of chunk contents from this file (only present when include_chunk_content=True)",
+@@ -315,6 +381,104 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+ 
+     combined_auth = get_combined_auth_dependency(api_key)
+ 
++    # RK3588_QUERY_FIFO_GATE_V3
++    # WORKERS=1: one FIFO protects the shared multi-card LLM.
++    class QueryCoordinator:
++        def __init__(self):
++            self._condition = asyncio.Condition()
++            self._active = None
++            self._waiting = []
++            self._max_waiting = max(1, int(os.getenv("RK_QUERY_MAX_QUEUE", "5")))
++
++        async def acquire(self, question: str, mode: str, client_token: str | None = None):
++            lease = {
++                "request_id": f"query-{uuid4().hex[:12]}", "question": question,
++                "mode": mode, "client_token": client_token,
++                "enqueued_at": datetime.now(timezone.utc).isoformat(),
++            }
++            async with self._condition:
++                if len(self._waiting) >= self._max_waiting:
++                    return None, self._snapshot_unlocked(client_token)
++                self._waiting.append(lease)
++                try:
++                    while self._active is not None or self._waiting[0] is not lease:
++                        await self._condition.wait()
++                    self._waiting.pop(0)
++                    lease["started_at"] = datetime.now(timezone.utc).isoformat()
++                    self._active = lease
++                    return dict(lease), None
++                except BaseException:
++                    if lease in self._waiting:
++                        self._waiting.remove(lease)
++                        self._condition.notify_all()
++                    raise
++
++        async def release(self, request_id: str):
++            async with self._condition:
++                if self._active is None or self._active["request_id"] != request_id:
++                    return
++                self._active = None
++                self._condition.notify_all()
++
++        def _snapshot_unlocked(self, client_token: str | None = None):
++            result = {"busy": self._active is not None, "queue_length": len(self._waiting), "max_queue_length": self._max_waiting}
++            if client_token:
++                if self._active and self._active.get("client_token") == client_token:
++                    result["client"] = {"state": "running", "position": 0}
++                else:
++                    for index, item in enumerate(self._waiting):
++                        if item.get("client_token") == client_token:
++                            result["client"] = {"state": "queued", "position": index + 1}
++                            break
++            return result
++
++        async def snapshot(self, client_token: str | None = None):
++            async with self._condition:
++                return self._snapshot_unlocked(client_token)
++
++    query_coordinator = QueryCoordinator()
++
++    async def release_after_stream(generator, lease):
++        try:
++            async for line in generator:
++                yield line
++        finally:
++            await query_coordinator.release(lease["request_id"])
++
++    @router.get("/query/status", dependencies=[Depends(combined_auth)])
++    async def query_status(http_request: Request):
++        """Return only aggregate queue state plus this browser's token state."""
++        return await query_coordinator.snapshot(http_request.headers.get("x-rk-queue-token"))
++
++
++    @router.get("/query/references/{chunk_id}", dependencies=[Depends(combined_auth)])
++    async def query_reference_preview(chunk_id: str):
++        """Return one bounded evidence chunk for the WebUI preview dialog."""
++        if not valid_chunk_id(chunk_id):
++            raise HTTPException(status_code=400, detail="Invalid chunk_id")
++        chunk = await rag.text_chunks.get_by_id(chunk_id)
++        if not isinstance(chunk, dict):
++            raise HTTPException(status_code=404, detail="Reference chunk not found")
++        full_doc_id = str(chunk.get("full_doc_id") or "")
++        doc_status = await rag.doc_status.get_by_id(full_doc_id) if full_doc_id else None
++        # RK3588_REFERENCE_GROUP_V1
++        return build_reference_preview(chunk_id, chunk, doc_status)
++
++    @router.get("/query/references/{chunk_id}/view", dependencies=[Depends(combined_auth)])
++    async def query_reference_document(chunk_id: str):
++        """Open the complete ingested Markdown and highlight its cited passage."""
++        if not valid_chunk_id(chunk_id):
++            raise HTTPException(status_code=400, detail="Invalid chunk_id")
++        chunk = await rag.text_chunks.get_by_id(chunk_id)
++        if not isinstance(chunk, dict):
++            raise HTTPException(status_code=404, detail="Reference chunk not found")
++        full_doc_id = str(chunk.get("full_doc_id") or "")
++        full_doc = await rag.full_docs.get_by_id(full_doc_id) if full_doc_id else None
++        from fastapi.responses import HTMLResponse
++        return HTMLResponse(
++            content=render_reference_document(chunk_id, chunk, full_doc),
++        )
++
+     @router.post(
+         "/query",
+         response_model=QueryResponse,
+@@ -444,7 +608,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+             },
+         },
+     )
+-    async def query_text(request: QueryRequest):
++    async def query_text(request: QueryRequest, http_request: Request):
+         """
+         Comprehensive RAG query endpoint with non-streaming response. Parameter "stream" is ignored.
+ 
+@@ -520,7 +684,11 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                 - 400: Invalid input parameters (e.g., query too short)
+                 - 500: Internal processing error (e.g., LLM service unavailable)
+         """
++        lease = None
+         try:
++            lease, queue_full = await query_coordinator.acquire(request.query, request.mode, http_request.headers.get("x-rk-queue-token"))
++            if queue_full:
++                raise HTTPException(status_code=429, detail={"code": "query_queue_full", "status": queue_full})
+             param = request.to_query_params(
+                 False
+             )  # Ensure stream=False for non-streaming endpoint
+@@ -564,6 +732,10 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                     enriched_references.append(ref_copy)
+                 references = enriched_references
+ 
++            references = enrich_reference_locations(
++                references, data.get("chunks", []), request.query
++            )
++
+             # Return response with or without references based on request
+             if request.include_references:
+                 return QueryResponse(
+@@ -577,9 +749,14 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                     references=None,
+                     response_time=response_time,
+                 )
++        except HTTPException:
++            raise
+         except Exception as e:
+             logger.error(f"Error processing query: {str(e)}", exc_info=True)
+             raise internal_server_error(e)
++        finally:
++            if lease:
++                await query_coordinator.release(lease["request_id"])
+ 
+     def _build_stream_generator(
+         *,
+@@ -587,6 +764,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+         include_references: bool,
+         include_chunk_content: bool,
+         include_response_time: bool,
++        query: str,
+         start_time: float,
+     ):
+         """Shared async generator that yields NDJSON lines for streaming responses.
+@@ -621,6 +799,10 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                     enriched_references.append(ref_copy)
+                 references = enriched_references
+ 
++            references = enrich_reference_locations(
++                references, result.get("data", {}).get("chunks", []), query
++            )
++
+             if llm_response.get("is_streaming"):
+                 # Streaming: references first, then response chunks
+                 if include_references:
+@@ -635,12 +817,19 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                     except Exception as e:
+                         logger.error(f"Streaming error: {str(e)}")
+                         yield f"{json.dumps({'error': str(e)})}\n"
++
++                if include_references:
++                    reference_footer = render_reference_markdown(await group_footer_references(references, rag))
++                    if reference_footer:
++                        yield f"{json.dumps({'response': reference_footer})}\n"
+             else:
+                 # Non-streaming: complete response in one message
+                 response_content = llm_response.get("content", "")
+                 if not response_content:
+                     response_content = "No relevant context found for the query."
+ 
++                if include_references:
++                    response_content += render_reference_markdown(await group_footer_references(references, rag))
+                 complete_response = {"response": response_content}
+                 if include_references:
+                     complete_response["references"] = references
+@@ -733,7 +922,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+             },
+         },
+     )
+-    async def query_text_stream(request: QueryRequest):
++    async def query_text_stream(request: QueryRequest, http_request: Request):
+         """
+         Advanced RAG query endpoint with flexible streaming response.
+ 
+@@ -884,7 +1073,12 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+             This endpoint is ideal for applications requiring flexible response delivery.
+             Use streaming mode for real-time interfaces and non-streaming for batch processing.
+         """
++        lease = None
++        stream_handoff = False
+         try:
++            lease, queue_full = await query_coordinator.acquire(request.query, request.mode, http_request.headers.get("x-rk-queue-token"))
++            if queue_full:
++                raise HTTPException(status_code=429, detail={"code": "query_queue_full", "status": queue_full})
+             # Use the stream parameter from the request, defaulting to True if not specified
+             stream_mode = request.stream if request.stream is not None else True
+             param = request.to_query_params(stream_mode)
+@@ -964,6 +1158,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                             include_references=include_references,
+                             include_chunk_content=include_chunk_content,
+                             include_response_time=True,
++                            query=request.query,
+                             start_time=start_time,
+                         )
+                         async for line in stream_gen():
+@@ -975,8 +1170,9 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                             # outlive the response generator after disconnect.
+                             await asyncio.gather(query_task, return_exceptions=True)
+ 
++                stream_handoff = True
+                 return StreamingResponse(
+-                    merged_generator(),
++                    release_after_stream(merged_generator(), lease),
+                     media_type="application/x-ndjson",
+                     headers={
+                         "Cache-Control": "no-cache",
+@@ -993,11 +1189,13 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                     include_references=request.include_references,
+                     include_chunk_content=request.include_chunk_content,
+                     include_response_time=False,
++                    query=request.query,
+                     start_time=start_time,
+                 )
+ 
++                stream_handoff = True
+                 return StreamingResponse(
+-                    stream_gen(),
++                    release_after_stream(stream_gen(), lease),
+                     media_type="application/x-ndjson",
+                     headers={
+                         "Cache-Control": "no-cache",
+@@ -1006,9 +1204,14 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+                         "X-Accel-Buffering": "no",
+                     },
+                 )
++        except HTTPException:
++            raise
+         except Exception as e:
+             logger.error(f"Error processing streaming query: {str(e)}", exc_info=True)
+             raise internal_server_error(e)
++        finally:
++            if lease and not stream_handoff:
++                await query_coordinator.release(lease["request_id"])
+ 
+     @router.post(
+         "/query/data",
+diff --git a/lightrag/operate.py b/lightrag/operate.py
+index 9b16198..2837062 100644
+--- a/lightrag/operate.py
++++ b/lightrag/operate.py
+@@ -6,6 +6,7 @@ from pathlib import Path
+ import asyncio
+ import json
+ import logging
++import os
+ import re
+ import json_repair
+ from typing import Any, AsyncIterator, overload, Literal, Callable, Awaitable
+@@ -76,6 +77,25 @@ from lightrag.chunk_schema import (
+     strip_internal_multimodal_markup_for_extraction,
+ )
+ from lightrag.prompt import PROMPTS, resolve_entity_extraction_prompt_profile
++from lightrag.rk_paged_extraction import (
++    build_continue_prompt,
++    build_seen_summary,
++    extraction_needs_next_page,
++    merge_extraction_page,
++    split_extraction_windows,
++)
++# RK3588_PAGED_EXTRACTION_V3
++from lightrag.rk_lexical_retrieval import (
++    fuse_vector_and_lexical_chunks,
++    retrieval_candidate_k,
++)
++# RK3588_LEXICAL_CHUNK_RETRIEVAL_V2
++# RK3588_LEXICAL_CHUNK_RETRIEVAL_V1
++from lightrag.rk_lexical_retrieval import (
++    bound_mix_graph_chunks,
++    preserve_focused_evidence,
++)
++# RK3588_FOCUSED_MERGE_V2
+ from lightrag.constants import (
+     GRAPH_FIELD_SEP,
+     DEFAULT_MAX_ENTITY_TOKENS,
+@@ -3932,6 +3952,9 @@ async def extract_entities(
+ 
+     # Extraction-scoped truncation tally; see _publish_truncation_summary below.
+     stage_tally = TokenLimitTruncationTally()
++    recovered_truncation_chunks: set[str] = set()
++    unresolved_truncation_chunks: set[str] = set()
++    unresolved_truncation_tally = TokenLimitTruncationTally()
+ 
+     use_llm_func: callable = global_config["role_llm_funcs"]["extract"]
+     entity_extract_max_gleaning = global_config["entity_extract_max_gleaning"]
+@@ -4022,6 +4045,13 @@ async def extract_entities(
+         # <equation id>) before building the extraction prompt. The stored
+         # chunk content is left intact so query-time citations still resolve.
+         content = strip_internal_multimodal_markup_for_extraction(chunk_dp["content"])
++        extraction_windows = split_extraction_windows(
++            content,
++            max_chars=max(80, get_env_value("EXTRACTION_PAGE_CHARS", 220, int)),
++        )
++        # The first request is built below from the first extraction-only
++        # window. Stored chunk content and citations remain unchanged.
++        content = extraction_windows[0]
+         # Get file path from chunk data or use default
+         file_path = chunk_dp.get("file_path", "unknown_source")
+ 
+@@ -4048,10 +4078,13 @@ async def extract_entities(
+ 
+         # Create cache keys collector for batch processing
+         cache_keys_collector = []
++        chunk_had_token_truncation = False
+ 
+         def _report_truncation(result: str, stage: str) -> None:
++            nonlocal chunk_had_token_truncation
+             if not is_truncated_response(result):
+                 return
++            chunk_had_token_truncation = True
+             location = f"chunk {chunk_key} in {file_path}"
+             # The server log keeps every occurrence with full identity; the
+             # bounded pipeline-status ring gets the first one plus the
+@@ -4116,11 +4149,10 @@ async def extract_entities(
+ 
+         _report_truncation(final_result, "initial")
+ 
+-        history = pack_user_ass_to_openai_messages(
+-            entity_extraction_user_prompt, final_result
+-        )
+-
+-        # Process initial extraction with appropriate parser
++        # Parse the first bounded page, then continue with fresh prompts that
++        # carry only compact record identities. Never replay the prior generated
++        # descriptions: doing so wastes the 4K context window and can make page 2
++        # fail before it starts generating.
+         if use_json_extraction:
+             maybe_nodes, maybe_edges = await _process_json_extraction_result(
+                 final_result,
+@@ -4138,110 +4170,135 @@ async def extract_entities(
+                 completion_delimiter=context_base["completion_delimiter"],
+             )
+ 
+-        # Process additional gleaning results only 1 time when entity_extract_max_gleaning is greater than zero.
+-        run_gleaning = entity_extract_max_gleaning > 0
+-        if (
+-            run_gleaning
+-            and extract_tokenizer is not None
+-            and max_extract_input_tokens > 0
+-        ):
+-            # Gleaning replays the initial extraction's user/assistant pair
+-            # via ``history_messages`` and appends a "continue" instruction.
+-            # When the initial response was large (many entities/edges) or
+-            # the chunk content is itself near the budget, that combined
+-            # payload can blow past MAX_EXTRACT_INPUT_TOKENS and yield a
+-            # provider ``context_length_exceeded`` error.  Pre-check here
+-            # and skip rather than fail.
+-            gleaning_token_count = (
+-                len(extract_tokenizer.encode(entity_extraction_system_prompt))
+-                + sum(
+-                    len(extract_tokenizer.encode(msg.get("content", "") or ""))
+-                    for msg in history
+-                )
+-                + len(extract_tokenizer.encode(entity_continue_extraction_user_prompt))
++        max_pages_per_window = max(
++            1, get_env_value("MAX_EXTRACTION_PAGES_PER_WINDOW", 2, int)
++        )
++        max_extraction_pages = max(
++            len(extraction_windows) * max_pages_per_window,
++            get_env_value("MAX_EXTRACTION_PAGES", 6, int),
++        )
++        page_no = 1
++        window_index = 0
++        window_page_no = 1
++        no_progress_pages = 0
++        had_unresolved_window = False
++        current_result = final_result
++        pagination_started = (
++            len(extraction_windows) > 1
++            or extraction_needs_next_page(
++                current_result, truncated=is_truncated_response(current_result)
+             )
+-            if gleaning_token_count > max_extract_input_tokens:
+-                logger.warning(
+-                    f"Gleaning stopped for chunk {chunk_key}: "
+-                    f"Input tokens ({gleaning_token_count}) exceeded limit "
+-                    f"({max_extract_input_tokens})."
+-                )
+-                run_gleaning = False
++        )
+ 
+-        if run_gleaning:
+-            glean_result, timestamp = await use_llm_func_with_cache(
+-                entity_continue_extraction_user_prompt,
++        # JSON response mode has no safe partial-object salvage contract. Keep
++        # its upstream one-shot behavior until a JSON pagination schema exists.
++        while not use_json_extraction and page_no < max_extraction_pages:
++            current_window_unfinished = extraction_needs_next_page(
++                current_result, truncated=is_truncated_response(current_result)
++            )
++            window_limit_reached = window_page_no >= max_pages_per_window
++            if not current_window_unfinished or window_limit_reached:
++                if (
++                    current_window_unfinished
++                    and window_limit_reached
++                    and is_truncated_response(current_result)
++                ):
++                    had_unresolved_window = True
++                    logger.warning(
++                        f"Extraction window {window_index + 1} unresolved for "
++                        f"chunk {chunk_key}: token-limit truncation persisted "
++                        f"after {max_pages_per_window} pages"
++                    )
++                if window_index + 1 >= len(extraction_windows):
++                    break
++                window_index += 1
++                window_page_no = 0
++                no_progress_pages = 0
++
++            page_no += 1
++            window_page_no += 1
++            continue_prompt = build_continue_prompt(
++                input_text=extraction_windows[window_index],
++                heading_context_block=heading_context_block,
++                seen_summary=build_seen_summary(maybe_nodes, maybe_edges),
++                page_no=page_no,
++                max_pages=max_extraction_pages,
++                window_no=window_index + 1,
++                window_count=len(extraction_windows),
++                max_total_records=max_total_records,
++                max_entity_records=max_entity_records,
++                language=language,
++            )
++            page_result, page_timestamp = await use_llm_func_with_cache(
++                continue_prompt,
+                 use_llm_func,
+                 system_prompt=entity_extraction_system_prompt,
+                 llm_response_cache=llm_response_cache,
+-                history_messages=history,
+                 cache_type="extract",
+                 chunk_id=chunk_key,
+                 cache_keys_collector=cache_keys_collector,
+-                response_format=(
+-                    {"type": "json_object"} if use_json_extraction else None
+-                ),
+                 llm_cache_identity=get_llm_cache_identity(global_config, "extract"),
+             )
+-
+-            _report_truncation(glean_result, "gleaning")
+-
+-            # Process gleaning result with appropriate parser
+-            if use_json_extraction:
+-                glean_nodes, glean_edges = await _process_json_extraction_result(
+-                    glean_result,
+-                    chunk_key,
+-                    timestamp,
+-                    file_path,
+-                )
+-            else:
+-                glean_nodes, glean_edges = await _process_extraction_result(
+-                    glean_result,
+-                    chunk_key,
+-                    timestamp,
+-                    file_path,
+-                    tuple_delimiter=context_base["tuple_delimiter"],
+-                    completion_delimiter=context_base["completion_delimiter"],
+-                )
+-
+-            # Merge results - compare description lengths to choose better version
+-            for i, (entity_name, glean_entities) in enumerate(
+-                glean_nodes.items(), start=1
+-            ):
+-                if entity_name in maybe_nodes:
+-                    # Compare description lengths and keep the better one
+-                    original_desc_len = len(
+-                        maybe_nodes[entity_name][0].get("description", "") or ""
+-                    )
+-                    glean_desc_len = len(glean_entities[0].get("description", "") or "")
+-
+-                    if glean_desc_len > original_desc_len:
+-                        maybe_nodes[entity_name] = list(glean_entities)
+-                    # Otherwise keep original version
+-                else:
+-                    # New entity from gleaning stage
+-                    maybe_nodes[entity_name] = list(glean_entities)
+-                await _cooperative_yield(i, every=8)
+-
+-            for i, (edge_key, glean_edge_list) in enumerate(
+-                glean_edges.items(), start=1
+-            ):
+-                if edge_key in maybe_edges:
+-                    # Compare description lengths and keep the better one
+-                    original_desc_len = len(
+-                        maybe_edges[edge_key][0].get("description", "") or ""
+-                    )
+-                    glean_desc_len = len(
+-                        glean_edge_list[0].get("description", "") or ""
++            _report_truncation(page_result, f"page-{page_no}")
++            page_nodes, page_edges = await _process_extraction_result(
++                page_result,
++                chunk_key,
++                page_timestamp,
++                file_path,
++                tuple_delimiter=context_base["tuple_delimiter"],
++                completion_delimiter=context_base["completion_delimiter"],
++            )
++            added = merge_extraction_page(
++                maybe_nodes, maybe_edges, page_nodes, page_edges
++            )
++            current_result = page_result
++            page_truncated = is_truncated_response(page_result)
++            if added == 0 and current_window_unfinished and not page_truncated:
++                # Small local models sometimes omit both terminal markers even
++                # when generation stopped normally. One stateless audit page
++                # with no new keys is positive evidence that this extraction
++                # window is exhausted; advance instead of falsely reporting an
++                # unresolved token-limit truncation.
++                current_result = context_base["completion_delimiter"]
++                no_progress_pages = 0
++            elif added == 0 and current_window_unfinished:
++                no_progress_pages += 1
++                if no_progress_pages >= 2:
++                    had_unresolved_window = True
++                    logger.warning(
++                        f"Extraction window {window_index + 1} unresolved for "
++                        f"chunk {chunk_key}: two continuation pages produced "
++                        "no new records"
+                     )
++                    if window_index + 1 >= len(extraction_windows):
++                        break
++                    window_index += 1
++                    window_page_no = 0
++                    no_progress_pages = 0
++                    current_result = "<|MORE|>"
++            else:
++                no_progress_pages = 0
+ 
+-                    if glean_desc_len > original_desc_len:
+-                        maybe_edges[edge_key] = list(glean_edge_list)
+-                    # Otherwise keep original version
+-                else:
+-                    # New edge from gleaning stage
+-                    maybe_edges[edge_key] = list(glean_edge_list)
+-                await _cooperative_yield(i, every=8)
++        pagination_unresolved = had_unresolved_window or (
++            not use_json_extraction
++            and is_truncated_response(current_result)
++        )
++        if pagination_unresolved:
++            if chunk_had_token_truncation:
++                unresolved_truncation_chunks.add(chunk_key)
++                unresolved_truncation_tally.record("entity-extraction", chunk_key)
++            message = (
++                f"Paged extraction unresolved for chunk {chunk_key} after "
++                f"{page_no}/{max_extraction_pages} pages"
++            )
++            logger.warning(message)
++            status_logger.log(f"Warning: {message}")
++        elif pagination_started:
++            if chunk_had_token_truncation:
++                recovered_truncation_chunks.add(chunk_key)
++            logger.info(
++                f"Paged extraction recovered chunk {chunk_key} in {page_no} pages"
++            )
+ 
+         # Inject multimodal entity + associations for drawing/table/equation
+         # chunks. Placed before update_chunk_cache_list so the per-chunk
+@@ -4344,16 +4401,28 @@ async def extract_entities(
+         """
+         if not stage_tally:
+             return
++        if (
++            stage_tally.affected == len(recovered_truncation_chunks)
++            and not unresolved_truncation_chunks
++        ):
++            recovery_message = (
++                f"Token-limit truncation recovered for all "
++                f"{stage_tally.affected} affected chunks during entity extraction "
++                f"({stage_tally.stage_breakdown()})"
++            )
++            logger.info(recovery_message)
++            status_logger.log(recovery_message)
++            return
+         truncation_message = (
+-            f"Warning: token-limit truncation hit {stage_tally.affected} of "
+-            f"{total_chunks} chunks during entity extraction "
+-            f"({stage_tally.stage_breakdown()}); "
++            f"Warning: unresolved token-limit truncation affected "
++            f"{len(unresolved_truncation_chunks)} of {total_chunks} chunks "
++            f"during entity extraction ({stage_tally.stage_breakdown()}); "
+             f"extracted knowledge may be incomplete"
+         )
+         logger.warning(truncation_message)
+         status_logger.log(truncation_message)
+         if truncation_tally is not None:
+-            truncation_tally.absorb(stage_tally)
++            truncation_tally.absorb(unresolved_truncation_tally)
+ 
+     # Get max async tasks limit from global_config
+     chunk_max_async = global_config.get("llm_model_max_async", 4)
+@@ -4467,7 +4536,10 @@ async def extract_entities(
+ # text filed under a history-blind key, and entries record no history, so a
+ # tainted entry cannot be told apart from a clean one. Only the answer cache is
+ # versioned; keyword/extract/summary entries never see conversation_history.
+-_ANSWER_CACHE_POLICY_VERSION = "query-answer-cache-v2"
++# RK3588_ANSWER_CACHE_VERSION_V1
++_ANSWER_CACHE_POLICY_VERSION = os.getenv(
++    "RK_ANSWER_CACHE_VERSION", "query-answer-cache-v2"
++)
+ 
+ 
+ def _answer_cache_kv(
+@@ -5011,8 +5083,9 @@ async def _get_vector_context(
+     search_top_k = query_param.chunk_top_k or query_param.top_k
+     cosine_threshold = chunks_vdb.cosine_better_than_threshold
+ 
++    candidate_top_k = retrieval_candidate_k(search_top_k, query)
+     results = await chunks_vdb.query(
+-        query, top_k=search_top_k, query_embedding=query_embedding
++        query, top_k=candidate_top_k, query_embedding=query_embedding
+     )
+     if not results:
+         logger.info(
+@@ -5032,8 +5105,12 @@ async def _get_vector_context(
+             }
+             valid_chunks.append(chunk_with_metadata)
+ 
++    valid_chunks = await fuse_vector_and_lexical_chunks(
++        query, valid_chunks, chunks_vdb.global_config, search_top_k
++    )
+     logger.info(
+-        f"Naive query: {len(valid_chunks)} chunks (chunk_top_k:{search_top_k} cosine:{cosine_threshold})"
++        f"Naive query: {len(valid_chunks)} candidate chunks "
++        f"(chunk_top_k:{search_top_k} candidate_top_k:{candidate_top_k} cosine:{cosine_threshold})"
+     )
+     return valid_chunks
+ 
+@@ -5520,6 +5597,23 @@ async def _merge_all_chunks(
+             query_embedding=query_embedding,
+         )
+ 
++    uncapped_entity_chunks = len(entity_chunks)
++    uncapped_relation_chunks = len(relation_chunks)
++    entity_chunks, relation_chunks = bound_mix_graph_chunks(
++        entity_chunks, relation_chunks, query_param
++    )
++    if (
++        len(entity_chunks) != uncapped_entity_chunks
++        or len(relation_chunks) != uncapped_relation_chunks
++    ):
++        logger.info(
++            "Mix graph chunk cap: entities %d->%d, relations %d->%d",
++            uncapped_entity_chunks,
++            len(entity_chunks),
++            uncapped_relation_chunks,
++            len(relation_chunks),
++        )
++
+     # Round-robin merge chunks from different sources with deduplication
+     merged_chunks = []
+     seen_chunk_ids = set()
+@@ -5569,8 +5663,10 @@ async def _merge_all_chunks(
+                     }
+                 )
+ 
++    restored_focused = preserve_focused_evidence(merged_chunks, vector_chunks)
+     logger.info(
+-        f"Round-robin merged chunks: {origin_len} -> {len(merged_chunks)} (deduplicated {origin_len - len(merged_chunks)})"
++        f"Round-robin merged chunks: {origin_len} -> {len(merged_chunks)} "
++        f"(deduplicated {origin_len - len(merged_chunks)}, focused restored {restored_focused})"
+     )
+ 
+     # Backfill heading path before token truncation so it counts toward the budget
+@@ -5598,6 +5694,21 @@ async def _build_context_str(
+     Build the final LLM context string with token processing.
+     This includes dynamic token calculation and final chunk truncation.
+     """
++    # Graph entities and relations have already been used to expand and merge
++    # candidate chunks at this point.  For a relation-fact query, ground the
++    # small answer model in those original chunks instead of also rendering
++    # broad KG summaries that can override the source evidence.
++    from lightrag.rk_lexical_retrieval import query_retrieval_profile
++    if merged_chunks and query_retrieval_profile(query) == "relation_fact":
++        logger.info(
++            "Relation-fact answer grounding: suppressing %d entities and %d "
++            "relations after graph-guided chunk retrieval",
++            len(entities_context),
++            len(relations_context),
++        )
++        entities_context = []
++        relations_context = []
++    # RK3588_RELATION_CONTEXT_V1
+     tokenizer = global_config.get("tokenizer")
+     if not tokenizer:
+         logger.error("Missing tokenizer, cannot build LLM context")
+@@ -5626,7 +5737,15 @@ async def _build_context_str(
+     )
+ 
+     kg_context_template = PROMPTS["kg_query_context"]
+-    user_prompt = query_param.user_prompt if query_param.user_prompt else ""
++    # Web clients commonly serialize an empty input as ``""``. Treat an
++    # empty or whitespace-only value like an omitted field so browser and API
++    # requests inherit the same configured answer contract.
++    user_prompt = (
++        query_param.user_prompt
++        if query_param.user_prompt and query_param.user_prompt.strip()
++        else os.getenv("RK_DEFAULT_USER_PROMPT", "")
++    )
++    # RK3588_USER_PROMPT_FALLBACK_V1
+     response_type = (
+         query_param.response_type
+         if query_param.response_type
+diff --git a/lightrag/pipeline.py b/lightrag/pipeline.py
+index f2b2ea6..81ce056 100644
+--- a/lightrag/pipeline.py
++++ b/lightrag/pipeline.py
+@@ -21,6 +21,12 @@ import threading
+ import time
+ import traceback
+ import uuid
++
++# RK_SINGLE_CARD_INGEST_MODEL_MODE_V3
++from lightrag.rk_ingest_model_mode import (
++    enter_ingest_model_mode,
++    leave_ingest_model_mode,
++)
+ from contextlib import AsyncExitStack
+ from dataclasses import dataclass, field
+ from datetime import datetime, timezone
+@@ -1712,6 +1718,7 @@ class _PipelineMixin:
+         # BEFORE the try so the finally can always read them.
+         uncommitted_wakeup = False
+         ingress = None
++        ingest_model_mode_active = False
+ 
+         # Forward-progress tracker for this run's manual DRAIN_TO_IDLE (LR2 §7.2).
+         # Run-scoped: a run that exits releases the freeze, and the next one
+@@ -1871,6 +1878,11 @@ class _PipelineMixin:
+                     PipelineNextStep.CONTINUE_DOCUMENT,
+                 ) and bool(to_process_docs)
+ 
++            # Keep the reranker unloaded for the complete processing run,
++            # not once per chunk. Query-mode workers are restored in finally.
++            await enter_ingest_model_mode()
++            ingest_model_mode_active = True
++
+             # Process documents until no more documents or requests
+             while True:
+                 # Check for cancellation request at the start of main loop
+@@ -2189,8 +2201,46 @@ class _PipelineMixin:
+                     if internal_halt is not None:
+                         append_pipeline_history(status_snapshot, internal_halt)
+ 
++            model_restore_error = None
++            if ingest_model_mode_active:
++                restoring_message = (
++                    "Document content processed; restoring query LLM, reranker, "
++                    "and embedding models"
++                )
++                async with pipeline_status_lock:
++                    pipeline_status["latest_message"] = restoring_message
++                    append_pipeline_history(pipeline_status, restoring_message)
++                try:
++                    await run_to_completion(leave_ingest_model_mode)
++                    ingest_model_mode_active = False
++                    ready_message = (
++                        "Query LLM, reranker, and embedding models are ready"
++                    )
++                    async with pipeline_status_lock:
++                        pipeline_status["latest_message"] = ready_message
++                        append_pipeline_history(pipeline_status, ready_message)
++                    # Let the normal finalizer release the busy flag, but keep
++                    # the final user-facing state explicit instead of the
++                    # generic "pipeline stopped" message.
++                    stopped_message = (
++                        "Document indexing completed; query LLM, reranker, "
++                        "and embedding models are ready"
++                    )
++                except BaseException as exc:
++                    model_restore_error = exc
++
+             await run_to_completion(_finalize)
+ 
++            if model_restore_error is not None:
++                restore_error_message = (
++                    "Document content was processed, but query model restoration "
++                    f"failed: {model_restore_error}"
++                )
++                async with pipeline_status_lock:
++                    pipeline_status["latest_message"] = restore_error_message
++                    append_pipeline_history(pipeline_status, restore_error_message)
++                raise model_restore_error
++
+     # ============================================================
+     # Pipeline orchestration
+     # ============================================================
+diff --git a/lightrag/prompt.py b/lightrag/prompt.py
+index 2f04b8a..a58ee6d 100644
+--- a/lightrag/prompt.py
++++ b/lightrag/prompt.py
+@@ -60,7 +60,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
+   - For each entity, extract:
+     - `entity_name`: The name of the entity. If the entity name is case-insensitive, capitalize the first letter of each significant word (title case). Ensure **consistent naming** across the entire extraction process.
+     - `entity_type`: Categorize the entity using the type guidance provided in the `---Entity Types---` section below. If none of the provided entity types apply, classify it as `Other`.
+-    - `entity_description`: Provide a concise yet comprehensive description of the entity's attributes and activities, based *solely* on the information present in the input text.
++    - `entity_description`: Provide one compact factual phrase of at most 16 words, based *solely* on the input text. Do not list secondary attributes.
+ 
+ 2. **Relationship Extraction:**
+   - Identify direct, clearly stated, and meaningful relationships between previously extracted entities.
+@@ -69,7 +69,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
+     - `source_entity`: The name of the source entity. Ensure **consistent naming** with entity extraction. Capitalize the first letter of each significant word (title case) if the name is case-insensitive.
+     - `target_entity`: The name of the target entity. Ensure **consistent naming** with entity extraction. Capitalize the first letter of each significant word (title case) if the name is case-insensitive.
+     - `relationship_keywords`: One or more high-level keywords summarizing the relationship. Multiple keywords within this field must be separated by a comma `,`. **DO NOT use `{tuple_delimiter}` for separating multiple keywords within this field.**
+-    - `relationship_description`: A concise explanation of the nature of the relationship between the source and target entities.
++    - `relationship_description`: One compact factual phrase of at most 20 words describing the direct relationship.
+ 
+ 3. **Record Types:**
+   - `entity` is used only for entity rows and those rows always contain exactly 4 tuple parts total.
+@@ -93,8 +93,8 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
+   - Output at most {max_total_records} total rows across entities and relationships in this response.
+   - Output at most {max_entity_records} entity rows in this response.
+   - Output fewer rows if fewer high-value items are present. Do not try to fill the limit.
+-  - Only output relationship rows whose source and target entities are both included in the selected entity rows for this response.
+-  - If the limit is reached, stop adding new rows immediately and output `{completion_delimiter}`.
++  - Only output relationship rows whose source and target entities are included in this response or listed under `---Already Extracted---`.
++  - If the limit is reached while relevant records remain, stop adding rows and output `<|MORE|>`. Output `{completion_delimiter}` only after the input is fully exhausted.
+   - Treat all relationships as **undirected** unless explicitly stated otherwise. Swapping the source and target entities for an undirected relationship does not constitute a new relationship.
+   - Avoid outputting duplicate relationships.
+   - Within the list of relationships, output the relationships that are **most significant** to the core meaning of the input text first.
+@@ -111,7 +111,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
+   - Do not extract, infer, or copy entities or relationships from the output format template.
+   - Angle-bracket tokens such as `<entity_name>` are placeholders. Replace them with values extracted from the current `---Input Text---` section and never output the placeholders literally.
+ 
+-9. **Completion Signal:** Output the literal string `{completion_delimiter}` only after all entities and relationships have been completely extracted and outputted.
++9. **Pagination Signal:** Output `<|MORE|>` when relevant unreported records remain. Output the literal string `{completion_delimiter}` only after all entities and relationships have been completely extracted.
+ 
+ ---Entity Types---
+ {entity_types_guidance}
+@@ -129,7 +129,7 @@ Extract entities and relationships from the `---Input Text---` section below.
+ 1. **Strict Adherence to Format:** Strictly adhere to all format requirements for entity and relationship lists, including output order, field delimiters, and proper noun handling, as specified in the system prompt.
+ 2. **Quantity Limits:** In this response, output at most {max_total_records} total rows and at most {max_entity_records} entity rows. Output fewer rows if fewer high-value items are present. Only output relationship rows whose source and target entities are both included in this response.
+ 3. **Output Content Only:** Output *only* the extracted list of entities and relationships. Do not include any introductory or concluding remarks, explanations, or additional text before or after the list.
+-4. **Completion Signal:** Output `{completion_delimiter}` as the final line after all relevant entities and relationships have been extracted and presented. If the row limit is reached, output `{completion_delimiter}` immediately after the last allowed row.
++4. **Pagination Signal:** If relevant unreported records remain or the row limit is reached, output `<|MORE|>` after the last row. Output `{completion_delimiter}` only when the input is fully exhausted.
+ 5. **Output Language:** Ensure the output language is {language}. Proper nouns (e.g., personal names, place names, organization names) must be kept in their original language and not translated.
+ 
+ {heading_context_block}---Input Text---
+@@ -152,7 +152,7 @@ Based on the last extraction task, identify and extract any missed or incorrectl
+   - Any corrected relationship row must be emitted with the literal `relation` prefix, never `entity`.
+ 3. **Quantity Limits:** In this response, output at most {max_total_records} total rows and at most {max_entity_records} entity rows. Output fewer rows if fewer high-value corrections or additions remain. A relationship row may reference entities that were already extracted correctly in the previous response. Do not re-output those entities unless they were missing or need correction.
+ 4. **Output Content Only:** Output *only* the extracted list of entities and relationships. Do not include any introductory or concluding remarks, explanations, or additional text before or after the list.
+-5. **Completion Signal:** Output `{completion_delimiter}` as the final line after all relevant missing or corrected entities and relationships have been extracted and presented. If the row limit is reached, output `{completion_delimiter}` immediately after the last allowed row.
++5. **Pagination Signal:** If relevant unreported records remain or the row limit is reached, output `<|MORE|>` after the last row. Output `{completion_delimiter}` only when the input is fully exhausted.
+ 6. **Output Language:** Ensure the output language is {language}. Proper nouns (e.g., personal names, place names, organization names) must be kept in their original language and not translated.
+ 
+ ---Output---
+diff --git a/lightrag/utils.py b/lightrag/utils.py
+index 0831c9a..88d4faa 100644
+--- a/lightrag/utils.py
++++ b/lightrag/utils.py
+@@ -40,6 +40,20 @@ from dotenv import load_dotenv
+ import json_repair
+ 
+ from lightrag.exceptions import ChunkBlockMatchError, EmptyTruncatedResponseError
++from lightrag.rk_source_policy import apply_source_authority_policy
++from lightrag.rk_evidence_refiner import refine_evidence_units
++from lightrag.rk_evidence_refiner import apply_evidence_coverage_gate
++from lightrag.rk_evidence_refiner import apply_evidence_contract
++from lightrag.rk_evidence_refiner import recover_contract_evidence
++from lightrag.rk_evidence_refiner import apply_query_anchor_gate
++from lightrag.rk_lexical_retrieval import (
++    fuse_query_aware_rerank,
++    query_aware_rerank_top_n,
++)
++from lightrag.rk_table_parent import prioritize_typed_table_parents
++from lightrag.rk_section_parent import prioritize_section_parents
++from lightrag.rk_chunk_budget import fit_first_evidence_chunk
++from lightrag.rk_chunk_citations import generate_chunk_reference_list
+ from lightrag.constants import (
+     DEFAULT_LOG_MAX_BYTES,
+     DEFAULT_LOG_BACKUP_COUNT,
+@@ -5896,6 +5910,52 @@ def normalize_rerank_result(
+     return {"index": index, "relevance_score": score}, None
+ 
+ 
++# RK3588_RETRIEVAL_TRACE_V1
++def _rk_log_chunk_stage(
++    query: str,
++    stage: str,
++    chunks: list[dict],
++    *,
++    source_type: str = "mixed",
++    input_count: int | None = None,
++    requested_top_k: int | None = None,
++    token_budget: int | None = None,
++) -> None:
++    """Log ranking decisions without logging query or evidence text."""
++    import hashlib
++
++    trace_id = hashlib.sha256(query.encode("utf-8")).hexdigest()[:12]
++    records = []
++    for rank, chunk in enumerate(chunks, 1):
++        record = {
++            "rank": rank,
++            "chunk_id": str(chunk.get("chunk_id") or chunk.get("id") or ""),
++            "file": Path(str(chunk.get("file_path") or "unknown_source")).name,
++            "source": chunk.get("source_type", "vector"),
++            "chars": len(str(chunk.get("content") or "")),
++        }
++        for key in ("rrf_score", "lexical_score", "rerank_score"):
++            value = chunk.get(key)
++            if value is not None:
++                try:
++                    record[key] = round(float(value), 6)
++                except (TypeError, ValueError):
++                    record[key] = str(value)
++        records.append(record)
++    logger.info(
++        "Retrieval trace: trace_id=%s stage=%s source=%s input=%s output=%d "
++        "requested_top_k=%s token_budget=%s chunks=%s",
++        trace_id,
++        stage,
++        source_type,
++        input_count if input_count is not None else len(chunks),
++        len(chunks),
++        requested_top_k,
++        token_budget,
++        json.dumps(records, ensure_ascii=False, separators=(",", ":")),
++    )
++
++
+ async def process_chunks_unified(
+     query: str,
+     unique_chunks: list[dict],
+@@ -5928,13 +5988,45 @@ async def process_chunks_unified(
+     if query_param.enable_rerank and query and unique_chunks:
+         if progress_callback:
+             await progress_callback("reranking")
++        unique_chunks = prioritize_typed_table_parents(unique_chunks, query)
++        unique_chunks = prioritize_section_parents(
++            unique_chunks, query, global_config
++        )
+         rerank_top_k = query_param.chunk_top_k or len(unique_chunks)
++        rerank_candidate_k = query_aware_rerank_top_n(
++            query, unique_chunks, rerank_top_k
++        )
+         unique_chunks = await apply_rerank_if_enabled(
+             query=query,
+             retrieved_docs=unique_chunks,
+             global_config=global_config,
+             enable_rerank=query_param.enable_rerank,
+-            top_n=rerank_top_k,
++            top_n=rerank_candidate_k,
++        )
++        unique_chunks = fuse_query_aware_rerank(
++            query, unique_chunks, rerank_top_k
++        )
++        unique_chunks = apply_source_authority_policy(unique_chunks, query)
++        unique_chunks = await refine_evidence_units(unique_chunks, query)
++        unique_chunks = apply_evidence_coverage_gate(unique_chunks, query)
++        unique_chunks = apply_evidence_contract(unique_chunks, query)
++        unique_chunks = recover_contract_evidence(unique_chunks, query, global_config)
++        unique_chunks = apply_evidence_contract(unique_chunks, query)
++        unique_chunks = apply_query_anchor_gate(unique_chunks, query)
++        logger.info(
++            "Source authority policy: adjusted=%d/%d",
++            sum(1 for chunk in unique_chunks if chunk.get("source_penalty", 1.0) < 1.0),
++            len(unique_chunks),
++        )
++        # RK3588_SOURCE_AUTHORITY_V10
++        _rk_log_chunk_stage(
++            query,
++            "reranked",
++            unique_chunks,
++            source_type=source_type,
++            input_count=origin_count,
++            requested_top_k=rerank_top_k,
++            token_budget=chunk_token_limit,
+         )
+ 
+     # 2. Filter by minimum rerank score if reranking is enabled
+@@ -5990,6 +6082,15 @@ async def process_chunks_unified(
+             chunk_token_limit,
+             tokenizer,
+         )
++        _rk_log_chunk_stage(
++            query,
++            "final",
++            unique_chunks,
++            source_type=source_type,
++            input_count=original_count,
++            requested_top_k=query_param.chunk_top_k,
++            token_budget=chunk_token_limit,
++        )
+ 
+         logger.debug(
+             f"Token truncation: {len(unique_chunks)} chunks from {original_count} "
+@@ -6642,6 +6743,17 @@ def generate_reference_list_from_chunks(
+     return reference_list, updated_chunks
+ 
+ 
++# RK3588_CHUNK_CITATIONS_V1
++_generate_file_reference_list_from_chunks = generate_reference_list_from_chunks
++
++
++def generate_reference_list_from_chunks(
++    chunks: list[dict],
++) -> tuple[list[dict], list[dict]]:
++    """Generate one reference per retained evidence chunk."""
++    return generate_chunk_reference_list(chunks)
++
++
+ def render_chunks_context_text(chunks_with_reference_ids: list[dict]) -> str:
+     """Render the exact chunk-context text sent to the LLM.
+ 
+@@ -6707,6 +6819,22 @@ def _truncate_chunks_for_unified_context(
+         tokenizer=tokenizer,
+     )
+ 
++    if not approx and chunks:
++        approx = fit_first_evidence_chunk(
++            chunks,
++            max_token_size,
++            tokenizer,
++            generate_reference_list_from_chunks,
++            render_chunks_context_text,
++        )
++        if approx:
++            logger.info(
++                "Chunk token fallback: clipped top evidence chunk to %d chars for %d tokens",
++                len(str(approx[0].get("content") or "")),
++                max_token_size,
++            )
++
++    # RK3588_CHUNK_BUDGET_FALLBACK_V1
+     k = len(approx)
+     while k > 0:
+         _, rendered_chunks = generate_reference_list_from_chunks(approx[:k])
+diff --git a/lightrag_webui/src/components/retrieval/QuerySettings.tsx b/lightrag_webui/src/components/retrieval/QuerySettings.tsx
+index 85ce35b..ccd026d 100644
+--- a/lightrag_webui/src/components/retrieval/QuerySettings.tsx
++++ b/lightrag_webui/src/components/retrieval/QuerySettings.tsx
+@@ -61,11 +61,11 @@ export default function QuerySettings() {
+   // Default values for reset functionality
+   const defaultValues = useMemo(() => ({
+     mode: 'mix' as QueryMode,
+-    top_k: 40,
+-    chunk_top_k: 20,
+-    max_entity_tokens: 6000,
+-    max_relation_tokens: 8000,
+-    max_total_tokens: 30000
++    top_k: 10,
++    chunk_top_k: 5,
++    max_entity_tokens: 1000,
++    max_relation_tokens: 1000,
++    max_total_tokens: 3600
+   }), [])
+ 
+   const handleReset = useCallback((key: keyof typeof defaultValues) => {
+diff --git a/lightrag_webui/src/stores/settings.ts b/lightrag_webui/src/stores/settings.ts
+index 7e4515d..e2743c3 100644
+--- a/lightrag_webui/src/stores/settings.ts
++++ b/lightrag_webui/src/stores/settings.ts
+@@ -119,11 +119,11 @@ const useSettingsStoreBase = create<SettingsState>()(
+ 
+       querySettings: {
+         mode: 'mix',
+-        top_k: 40,
+-        chunk_top_k: 20,
+-        max_entity_tokens: 6000,
+-        max_relation_tokens: 8000,
+-        max_total_tokens: 30000,
++        top_k: 10,
++        chunk_top_k: 5,
++        max_entity_tokens: 1000,
++        max_relation_tokens: 1000,
++        max_total_tokens: 3600,
+         only_need_context: false,
+         only_need_prompt: false,
+         stream: true,
+@@ -229,7 +229,7 @@ const useSettingsStoreBase = create<SettingsState>()(
+     {
+       name: 'settings-storage',
+       storage: createJSONStorage(() => localStorage),
+-      version: 21,
++      version: 23,
+       migrate: (state: any, version: number) => {
+         if (version < 2) {
+           state.showEdgeLabel = false
+@@ -350,6 +350,28 @@ const useSettingsStoreBase = create<SettingsState>()(
+             state.currentTab = 'documents'
+           }
+         }
++        if (version < 22) {
++          // RK1828 Qwen3.5-4B has a 4096-token context window. Override
++          // historical browser defaults so UI requests stay within it.
++          state.querySettings = {
++            ...state.querySettings,
++            top_k: 10,
++            chunk_top_k: 5,
++            max_entity_tokens: 1000,
++            max_relation_tokens: 1000,
++            max_total_tokens: 2800,
++            stream: true,
++            enable_rerank: true,
++          }
++        }
++        if (version < 23) {
++          // The query role is capped at 128 output tokens, so reserve the
++          // remaining 4K context window for source chunks as well as KG.
++          state.querySettings = {
++            ...state.querySettings,
++            max_total_tokens: 3600,
++          }
++        }
+         return state
+       }
+     }
