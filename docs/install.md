@@ -76,9 +76,9 @@ bash scripts/start-board.sh
 | 模式 | LightRAG 规则 | 前置条件 |
 | --- | --- | --- |
 | `cloud` | `pdf:mineru-R,*:legacy-R` | `MINERU_API_TOKEN` |
-| `rkvision` | `pdf:rkvision-R,*:legacy-R` | 本地 PDFium、DocLayout-YOLO、PPOCRv6 |
+| `rkvision` | `pdf:rkvision-P,md:native-P,*:legacy-R` | 本地 PDFium、DocLayout-YOLO、PPOCRv6 |
 
-解析 profile 位于 `deploy/parser-profiles/`。RKVision 通过 `lightrag.parsers` entry point 注册为第三方 Parser；当前输出阅读顺序文本，因此使用 `R` 分块。
+解析 profile 位于 `deploy/parser-profiles/`。RKVision 通过 `lightrag.parsers` entry point 注册为第三方 Parser；它将 PDF 的页面、版面、表格和坐标转换为 LightRAG sidecar。Markdown 使用 LightRAG 内置 `native` parser 保留标题、表格和代码块；两者都使用 `P` 段落语义分块。
 
 ## 官方 LightRAG
 

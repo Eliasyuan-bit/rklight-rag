@@ -94,6 +94,29 @@ class LexicalRetrievalTest(unittest.TestCase):
         self.assertIn("speed=5000", passage)
         self.assertLessEqual(len(passage), 2400)
 
+    def test_metric_table_passage_removes_prefix_and_keeps_header(self):
+        module = load_module()
+        content = """unrelated download links and model URLs
+# ModelPerformance
+This section shows benchmark results.
+LLMModelPerformance
+TTFT TPOT
+ModelName Accelerator InputTokens NewTokens DecodeTPS
+(ms) (ms)
+Qwen2.5-0.5B RK182X 128 128 22.74 4.48 223.40
+Qwen2.5-1.5B RK182X 128 128 49.14 6.69 149.39
+Qwen2.5-3B RK182X 128 128 85.54 9.69 103.24
+Qwen2.5-7B RK1828 128 128 162.25 14.19 70.47
+Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
+"""
+        passage = module._best_passage(content, "qwen2.5各个大小模型的性能如何")
+        self.assertTrue(passage.startswith("LLMModelPerformance"))
+        self.assertIn("ModelName Accelerator InputTokens", passage)
+        self.assertIn("Qwen2.5-0.5B", passage)
+        self.assertIn("Qwen2.5-7B", passage)
+        self.assertNotIn("unrelated download", passage)
+        self.assertNotIn("Qwen3-0.6B", passage)
+
     def test_comparison_query_collects_each_named_section(self):
         module = load_module()
         content = (

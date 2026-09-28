@@ -266,24 +266,44 @@ class PagePipeline::Impl {
     const int index = one_based_page - 1;
     const NativeTextPage native = document.ExtractText(index);
     const double page_height_points = document.PageHeightPoints(index);
-    const double page_width_points = document.PageWidthPoints(index);
     const auto characters = ToPixelCharacters(native, page_height_points, config_.render_dpi);
 
-    // Native PDFs should not pay the visual-model cost merely because they
-    // contain screenshots.  The text layer already gives stable glyph boxes
-    // and reading order. Sparse/scanned pages still use the visual route.
+    // Dense native PDFs do not need OCR, but still run Layout so downstream
+    // chunking retains titles, tables and semantic regions instead of seeing
+    // a flat list of PDFium lines.
     if (native.non_whitespace_count >= config_.native_fast_path_min_characters) {
+      const cv::Mat page = document.RenderBgr(index, config_.render_dpi);
+      MemoryImageFile page_image(page);
+      const auto regions = layout_->DetectFile(page_image.path());
       ParsedPage result;
       result.page_number = one_based_page;
-      result.parse_route = "pdfium_native";
-      const float scale = static_cast<float>(config_.render_dpi) / 72.0F;
-      result.width = static_cast<int>(std::ceil(page_width_points * scale));
-      result.height = static_cast<int>(std::ceil(page_height_points * scale));
+      result.parse_route = "pdfium_layout";
+      result.width = page.cols;
+      result.height = page.rows;
       result.dpi = config_.render_dpi;
       result.native_text = native.utf8;
       result.native_character_count = native.character_count;
+      result.layout_regions.reserve(regions.size());
+      for (const auto& region : regions) {
+        PageBlock layout_block;
+        layout_block.label = region.label;
+        layout_block.class_id = region.class_id;
+        layout_block.layout_score = region.score;
+        layout_block.box = region.box;
+        result.layout_regions.push_back(std::move(layout_block));
+      }
       result.blocks = BuildUnassignedNativeBlocks(characters, std::vector<bool>(characters.size(), false));
-      for (auto& block : result.blocks) block.label = "native_text";
+      for (auto& block : result.blocks) {
+        const int layout_index = BestLayoutRegion(block.box, regions);
+        if (layout_index >= 0) {
+          const auto& layout = regions[static_cast<size_t>(layout_index)];
+          block.label = layout.label;
+          block.class_id = layout.class_id;
+          block.layout_score = layout.score;
+        } else {
+          block.label = "unassigned_native_text";
+        }
+      }
       std::sort(result.blocks.begin(), result.blocks.end(), [](const auto& a, const auto& b) {
         const float ay = (a.box[1] + a.box[3]) * 0.5F;
         const float by = (b.box[1] + b.box[3]) * 0.5F;

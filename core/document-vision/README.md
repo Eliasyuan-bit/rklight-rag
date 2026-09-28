@@ -99,9 +99,9 @@ results are emitted separately in `layout_regions`, so a missed or overlapping
 validating or tuning the OCR fallback, not as a global PDF-text switch.
 
 For a page with at least 80 non-whitespace PDFium characters, the default
-route is `pdfium_native`: it skips rendering, Layout and OCR entirely and
-reconstructs the reading order from native glyph coordinates. Sparse or
-scanned pages use `vision_fusion`, the full PDFium + Layout + PPOCR path.
+route is `pdfium_layout`: it renders once for Layout, assigns semantic labels
+to native PDFium lines, and skips OCR. Sparse or scanned pages use
+`vision_fusion`, the full PDFium + Layout + PPOCR path.
 `parse_route` is emitted in each page JSON for observability.
 
 ## Long-running document service

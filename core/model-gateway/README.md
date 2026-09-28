@@ -1,14 +1,31 @@
 # LightRAG RK1828 Model Gateway
 
-This board-local process adapts the resident C++ JSONL daemons to HTTP:
+This board-local process presents one API for the vendor LLM HTTP server and
+the resident vector-model JSONL daemons:
 
-- `POST /v1/chat/completions` — Qwen3.5-9B LLM
+- `POST /v1/chat/completions` — Qwen3.5 LLM through `rkllm3-server`
 - `POST /v1/embeddings` — Qwen3-Embedding-0.6B
 - `POST /v1/rerank` — Qwen3-Reranker-0.6B
 - `GET /health`, `GET /v1/models`
 
-It starts each configured daemon only once, then serializes requests to that
-daemon. It does not load weights per request.
+It starts the configured query workers once and serializes requests to each
+worker. An optional ingestion LLM is switched once around a complete indexing
+run, never once per chunk or query. Legacy `RK_LLM_COMMAND` JSONL workers
+remain supported, but `RK_LLM_SERVER_COMMAND` selects the vendor HTTP server
+backend.
+
+When all three models use one RK1828, set `RK_GATEWAY_SINGLE_DEVICE=1`. The
+gateway then serializes LLM, embedding and reranker execution with one shared
+device lock. Without it, different HTTP requests may run the LLM and a vector
+model concurrently even though each individual daemon is serialized.
+
+On a 5 GB card, eagerly start the 2B query LLM and both vector workers.
+Single-device mode initializes the larger reranker before embedding to avoid
+the reranker's higher startup peak after embedding is already resident:
+
+```bash
+export RK_GATEWAY_EAGER_WORKERS=llm,reranker,embedding
+```
 
 ## Board configuration
 
@@ -18,9 +35,20 @@ shell quoting: the gateway parses them with `shlex`.
 ```bash
 export RK_GATEWAY_HOST=127.0.0.1
 export RK_GATEWAY_PORT=8100
+export RK_GATEWAY_SINGLE_DEVICE=1
 
-# The LLM command must end with --daemon.
-export RK_LLM_COMMAND='/userdata/rk1828-rag-model-service/bin/multicard/rknn_multicard_demo ... --daemon unused 128 0 0'
+# The 2B model is resident in query mode.
+export RK_LLM_MODEL=qwen3.5-2b
+export RK_LLM_SERVER_URL=http://127.0.0.1:8080
+export RK_LLM_SERVER_COMMAND='... rkllm3-server --alias qwen3.5-2b ... --port 8080 ...'
+
+# In ingest mode the gateway stops 2B, embedding and reranker, starts 4B once,
+# and lets embedding restart lazily when vector writes begin. On completion it
+# restores 2B -> reranker -> embedding in that order.
+export RK_GATEWAY_INGEST_MODE_ENABLED=1
+export RK_INGEST_LLM_MODEL=qwen3.5-4b
+export RK_INGEST_LLM_SERVER_URL=http://127.0.0.1:8080
+export RK_INGEST_LLM_SERVER_COMMAND='... rkllm3-server --alias qwen3.5-4b ... --port 8080 ...'
 
 # Pin both vector programs to the third RK1828. Prefixing env is intentionally
 # avoided; put this into the systemd Environment= field instead.
@@ -38,10 +66,19 @@ set +a
 python3 /userdata/lightrag-rk1828-model-gateway/rk1828_model_gateway.py
 ```
 
-Both vector workers are pinned to the third card. First measure each one alone;
-then enable both commands and verify the card's memory use and tail latency.
-The gateway keeps each successfully started worker resident rather than loading
-model weights for every request.
+All worker configs may be pinned to one card when its measured capacity is
+sufficient. First measure each one alone; then enable all commands and verify
+the card's combined memory use and tail latency.
+The gateway keeps the query layout resident. Only a complete ingestion run
+causes the 2B/4B phase transition; ordinary retrieval and generation never
+reload the model.
+
+For LLM requests, the gateway forwards its resolved output ceiling as both
+OpenAI `max_tokens` and RKLLM `n_predict`. The server can therefore use a
+different maximum for each request without restarting. `max_tokens` remains a
+ceiling: generation still stops early on EOS. Multiple leading LightRAG system
+messages are folded into one because Qwen3.5's bundled Jinja template accepts
+only one system turn at the beginning.
 
 ## Smoke tests
 
@@ -66,12 +103,14 @@ the gateway serializes each NPU daemon and this avoids unbounded request queues.
 
 ## Verified board result
 
-On the RK3588 + three RK1828 configuration, all three endpoints were verified
+On the single-RK1828 RK3588 configuration, all three endpoints were verified
 against the deployed models:
 
 - Embedding: 1024 dimensions; gateway-returned vector L2 norm is `1.0`.
 - Reranker: `RAG retrieval` ranked above an unrelated weather passage
   (`0.9873` versus approximately `0`).
-- Chat completion: Qwen3.5-9B returned a Chinese RAG definition through
-  `/v1/chat/completions`; first-token time was about `242 ms` after its
-  one-time two-card initialization.
+- Query chat completion uses resident Qwen3.5-2B. A direct mode-switch smoke
+  test loaded Qwen3.5-4B for ingestion, generated a response, then restored
+  Qwen3.5-2B plus both vector workers.
+- A full LightRAG Mix query completed keyword extraction, embedding, reranking,
+  and streamed final generation with all three models on one card.

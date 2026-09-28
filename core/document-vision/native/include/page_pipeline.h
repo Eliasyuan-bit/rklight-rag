@@ -27,8 +27,8 @@ struct PageBlock {
 
 struct ParsedPage {
   int page_number = 0;  // One-based.
-  // `pdfium_native` bypasses visual models because the PDF text layer is
-  // sufficiently dense; `vision_fusion` rendered and ran Layout + OCR.
+  // `pdfium_layout` uses native text plus Layout (without OCR) when the PDF
+  // text layer is dense; `vision_fusion` runs Layout + OCR for sparse pages.
   std::string parse_route;
   int width = 0;
   int height = 0;

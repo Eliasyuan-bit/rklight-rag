@@ -1,22 +1,25 @@
-"""LightRAG parser adapter for the long-running RK3588 document-vision daemon.
+"""Structured LightRAG adapter for the RK3588 document-vision daemon.
 
-The current native daemon emits an audited ``document.json`` and a lossless
-reading-order ``document.md``.  This adapter persists the latter through the
-official BaseParser contract; geometry and OCR provenance remain alongside it
-in the daemon output directory for auditing.  A later sidecar writer can turn
-those audited page blocks into the full LightRAG sidecar format without
-changing the daemon protocol.
+The native daemon emits audited page blocks in ``document.json``.  This
+adapter maps their headings, tables, page anchors and bounding boxes into the
+official LightRAG sidecar IR, writes ``blocks.jsonl`` and persists the raw
+RKVision result beside it for troubleshooting.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+import shutil
 import subprocess
+import time
 from pathlib import Path
 from uuid import uuid4
 
+from lightrag.constants import FULL_DOCS_FORMAT_LIGHTRAG
 from lightrag.parser.base import BaseParser, ParseContext, ParseResult
+
+from .ir_builder import RkVisionIRBuilder
 
 
 class _Daemon:
@@ -58,21 +61,60 @@ class RkVisionParser(BaseParser):
         source = resolved.source_path
         if not source.is_file():
             raise FileNotFoundError(f"rkvision source not found: {source}")
-        output_dir = resolved.parsed_dir / "rkvision_raw"
+        output_dir = resolved.parsed_dir / ".rkvision_raw"
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
         await _Daemon.request(source, output_dir)
-        markdown_path = output_dir / "document.md"
-        text = markdown_path.read_text(encoding="utf-8").strip()
-        if not text:
-            raise ValueError(f"rkvision extracted no usable text from {ctx.file_path}")
+        document_path = output_dir / "document.json"
+        if not document_path.is_file():
+            raise ValueError(f"rkvision did not produce document.json for {ctx.file_path}")
+
+        from lightrag.sidecar import write_sidecar
+        from lightrag.utils_pipeline import make_lightrag_doc_content, sidecar_uri_for
+
+        ir = RkVisionIRBuilder().normalize_from_path(
+            document_path, document_name=resolved.document_name
+        )
+        _clear_previous_sidecar(resolved.parsed_dir, resolved.document_name)
+        parsed_data = write_sidecar(
+            ir,
+            parsed_dir=resolved.parsed_dir,
+            doc_id=ctx.doc_id,
+            engine=self.engine_name,
+            clean_parsed_dir=False,
+        )
         await ctx.rag._persist_parsed_full_docs(ctx.doc_id, {
-            "content": text,
+            "content": make_lightrag_doc_content(parsed_data["content"]),
             "file_path": ctx.file_path,
-            "parse_format": "raw",
+            "parse_format": FULL_DOCS_FORMAT_LIGHTRAG,
+            "sidecar_location": sidecar_uri_for(resolved.parsed_dir),
             "parse_engine": self.engine_name,
+            "update_time": int(time.time()),
         })
         await ctx.archive_source(str(source))
         return ParseResult(
-            doc_id=ctx.doc_id, file_path=ctx.file_path, parse_format="raw",
-            content=text, blocks_path="", parse_engine=self.engine_name,
+            doc_id=ctx.doc_id,
+            file_path=ctx.file_path,
+            parse_format=FULL_DOCS_FORMAT_LIGHTRAG,
+            content=parsed_data["content"],
+            blocks_path=parsed_data["blocks_path"],
+            parse_engine=self.engine_name,
             parse_warnings={"rkvision_artifacts": str(output_dir)},
         )
+
+
+def _clear_previous_sidecar(parsed_dir: Path, document_name: str) -> None:
+    """Remove only writer-owned outputs while preserving RKVision raw data."""
+    base = Path(document_name).stem or document_name
+    for suffix in (
+        ".blocks.jsonl",
+        ".tables.json",
+        ".drawings.json",
+        ".equations.json",
+    ):
+        target = parsed_dir / f"{base}{suffix}"
+        if target.is_file():
+            target.unlink()
+    assets = parsed_dir / f"{base}.blocks.assets"
+    if assets.is_dir():
+        shutil.rmtree(assets)

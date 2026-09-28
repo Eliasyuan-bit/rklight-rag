@@ -247,6 +247,47 @@ def _passage_query_tokens(query: str) -> Counter[str]:
     return Counter(_passage_tokens(query))
 
 
+def _metric_table_passage(lines: list[str], query: str, max_chars: int) -> str | None:
+    """Keep a metric table's header and matching rows in one clean passage."""
+    folded_query = query.casefold()
+    if not any(term in folded_query for term in ("性能", "performance", "ttft", "tpot", "tps", "吞吐", "延迟")):
+        return None
+    identifiers = [
+        token
+        for token in re.findall(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+", folded_query)
+        if any(char.isdigit() for char in token)
+    ]
+    if not identifiers:
+        return None
+    folded_lines = [line.casefold() for line in lines]
+    matching = [
+        index
+        for index, line in enumerate(folded_lines)
+        if any(identifier in line for identifier in identifiers)
+    ]
+    if not matching:
+        return None
+    header_index = None
+    for index in range(matching[0], -1, -1):
+        compact = re.sub(r"\s+", "", folded_lines[index])
+        if "llmmodelperformance" in compact or "modelperformance" in compact:
+            header_index = index
+            break
+    if header_index is None:
+        return None
+    header_block = "".join(lines[header_index : matching[0]])
+    compact_header = re.sub(r"\s+", "", header_block.casefold())
+    header_hits = sum(
+        term in compact_header
+        for term in ("modelname", "accelerator", "ttft", "tpot", "decodetps")
+    )
+    if header_hits < 3:
+        return None
+    end = matching[-1] + 1
+    passage = "".join(lines[header_index:end]).strip()
+    return passage[:max_chars] if passage else None
+
+
 def _markdown_headings(lines: list[str]) -> list[tuple[int, int, set[str]]]:
     """Return Markdown headings while ignoring hash comments inside code fences."""
     headings: list[tuple[int, int, set[str]]] = []
@@ -344,6 +385,9 @@ def _best_passage(content: str, query: str) -> str:
     """Return a bounded, line-aligned window around the strongest lexical hit."""
     max_chars = max(512, int(os.getenv("RK_LEXICAL_PASSAGE_CHARS", "2400")))
     lines = content.splitlines(keepends=True)
+    metric_table = _metric_table_passage(lines, query, max_chars)
+    if metric_table:
+        return metric_table
     multi_section = _multi_section_passage(lines, query, max_chars)
     if multi_section:
         return multi_section
