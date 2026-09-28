@@ -1,0 +1,14 @@
+{
+  "captured_on": "2026-09-15",
+  "board_serial": "32a331f9ae73952d",
+  "hash_definition": "SHA-256 of exact decoded content field encoded as UTF-8",
+  "documents": {
+    "doc-4601bd084347edfae6ee460cb83606f4": {"file":"1820_test.kg.md","content_sha256":"78c1aa8496a3c407adaac37b330c0295732f58ed5344ba9fa2eb8133a62b8ee3"},
+    "doc-528e76a1c2dcea592d03a317a4f575c4": {"file":"1820_test.text.md","content_sha256":"5e54a1e1a5e74d978f3a75368448fbf1bc37a2583b5a3d6201b13bda2991c31c"},
+    "doc-5b5a4bdc0739e5ac1eccb09848ada343": {"file":"工程部署指南.text.md","content_sha256":"00d9a6052255f7d55a35ef68d05b2c5f41723f5e3427f3346eeee42c662bf16f"},
+    "doc-67411aa002b9d31ab3e6ad35a907a147": {"file":"基于 RK3588 + RK1828 的离线 LightRAG 知识库系统技术方案.text.md","content_sha256":"6118b573bb2703f379bc4f79fdac8cd2b7d31d957bc664650d8136316b19e43b"},
+    "doc-b7946cb033cd0b351af27ef206123364": {"file":"基于 RK3588 + RK1828 的离线 LightRAG 知识库系统技术方案.kg.md","content_sha256":"6ab9f451fc86689b8b1a4afc6f6a4cc4ddbd2b4e476a0a10c240cf51f0d6c3e9"},
+    "doc-c33ddc0016e0ccea68b6036e2ef9c6bd": {"file":"Rockchip_User_Guide_RKAUTH_CN.pdf","content_sha256":"a061c78b9d9c432ad3329aa1567ded7610a76500e77ccf9aa44974132d4ec73b"},
+    "doc-f641b5baf4fb2f58a5c116d452007344": {"file":"工程部署指南.kg.md","content_sha256":"4a39aa453226d9eb52471d6e00cb9d61ea8af28638f6f7f60b48467c8344b79f"}
+  }
+}

@@ -132,6 +132,15 @@ class Gateway:
         self.llm = worker_from_env("llm", "RK_LLM_COMMAND")
         self.embedding = worker_from_env("embedding", "RK_EMBEDDING_COMMAND")
         self.reranker = worker_from_env("reranker", "RK_RERANKER_COMMAND")
+        # Embedding and reranking share one RK1828 in the two-card layout.
+        # JsonlWorker locks only serialize requests for the same child; this
+        # lock prevents those two distinct children from issuing NPU work at
+        # the same time on their shared card.
+        self.vector_lock = threading.Lock()
+
+    def request_vector(self, worker: JsonlWorker, payload: dict[str, Any]) -> dict[str, Any]:
+        with self.vector_lock:
+            return worker.request(payload)
 
     def health(self) -> dict[str, Any]:
         def state(worker: JsonlWorker | None) -> str:
@@ -145,10 +154,10 @@ class Gateway:
         """Start resident workers during service boot, never on a user query.
 
         LLM initialization is intentionally eager by default.  Embedding and
-        reranker remain lazy because they share the third accelerator and are
+        reranker remain lazy because they share one accelerator and are
         not required for the WebUI to become interactive. Set
         ``RK_GATEWAY_EAGER_WORKERS=llm,embedding,reranker`` only when the
-        board deployment reserves sufficient independent resources for all.
+        vector models are assigned to independent accelerators.
         """
         requested = {
             value.strip().lower()
@@ -161,6 +170,81 @@ class Gateway:
 
 
 GATEWAY = Gateway()
+LLM_MODEL_ID = os.getenv("RK_LLM_MODEL", "qwen3.5-9b-110k")
+QUERY_MODEL_ID = os.getenv("RK_QUERY_MODEL", LLM_MODEL_ID)
+QUERY_MAX_TOKENS = int(os.getenv("RK_QUERY_MAX_TOKENS", "128"))
+QUERY_SYSTEM_PROMPT = (
+    "只依据检索上下文回答，不用常识补全。名称、数值、命令、路径和动作词按原文抄写。"
+    "“仅X”事实只能归入X；比较对象的事实只能取自该对象标题至下一个同级标题之间。"
+    "一般规则与特定例外并存时写明例外。询问当前设备而上下文无实时证据时，只说无法确认及需检查项。"
+    "按问题类型只选一种格式：命令题=命令加一句说明；原因题=一句结论加最多三条直接原因；"
+    "比较题=每个对象一个单行列表项，写全指定维度的动作和测试项；"
+    "完整复现或部署题=恰好五个短步骤，覆盖环境、授权、部署、模型、启动验证。"
+    "答案只写一遍；禁止总结、背景、无关参数、思考过程和自行生成的引用列表。"
+)
+QUERY_OUTPUT_SUFFIX = (
+    "\n\n【输出】直接回答且只写一次。原因题最多三条后停止；比较题每对象仅一行且不得跨标题取值；"
+    "完整复现或部署题恰好五个短行。不得漏掉点名对象，不得输出总结、背景或引用列表。"
+)
+
+
+def extract_user_query(prompt_content: str) -> str:
+    """Extract LightRAG's final user query from its assembled prompt."""
+    marker = "---User Query---"
+    return prompt_content.rsplit(marker, 1)[-1].strip() if marker in prompt_content else prompt_content.strip()
+
+
+def intent_output_suffix(query: str) -> str:
+    """Return one high-priority format contract instead of competing rules."""
+    folded = query.casefold()
+    if any(term in folded for term in ("当前", "现在", "这台")):
+        return (
+            "\n【本题格式：实时状态】若上下文没有实时证据，只输出两句：第一句说无法从知识库确认；"
+            "第二句说需检查当前设备或服务配置。禁止列历史方案、可能原因、排查步骤或具体命令。"
+        )
+    if "归类为什么错误" in folded or "归类为何错误" in folded:
+        return "\n【本题格式：错误归类】只输出错误类别和一条直接判据，共一句话。"
+    if any(term in folded for term in ("复现", "完整部署")):
+        return (
+            "\n【本题只按此模板作答】"
+            "1. 环境：<关键硬件和软件>\n"
+            "2. 授权：<授权输入和产物>\n"
+            "3. 部署：<脚本和目标目录>\n"
+            "4. 模型：<模型目录>\n"
+            "5. 启动验证：<原文启动命令及验证方式>\n"
+            "每个尖括号只填一个短语；不得加标题、解释或第六行。"
+        )
+    if any(term in folded for term in ("为什么", "原因")):
+        return (
+            "\n【本题格式：原因】只列上下文直接证明的原因，共一至三条；"
+            "不为凑数添加第三条，列完立即结束。"
+        )
+    if "一样吗" in folded:
+        return "\n【本题格式：通则与例外】只用一句话先写通则、再写特定方式的例外，不得分项或重复。"
+    if any(term in folded for term in ("区别", "对比", "比较")):
+        return (
+            "\n【本题格式：比较】每个点名对象一个单行列表项；仅从其标题区间取事实；"
+            "写完所有对象立即结束，不得换一种说法重复。"
+        )
+    if any(term in folded for term in ("命令", "怎么用", "如何通过", "怎么查看", "怎么写")):
+        return "\n【本题格式：命令】只输出命令代码块和一句预期结果或说明。"
+    if "哪里" in folded and any(term in folded for term in ("怎么", "如何")):
+        return "\n【本题格式：位置与步骤】第一句回答位置，再输出最多两个不重复的定位步骤，不得自行列引用。"
+    if any(term in folded for term in ("怎么", "如何")):
+        return "\n【本题格式：步骤】只输出一至三个不重复的操作步骤，不得自行列引用。"
+    return ""
+
+
+def prepare_query_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add the small-model grounding contract without mutating caller data."""
+    prepared = [dict(message) for message in messages]
+    for message in reversed(prepared):
+        if message.get("role") == "user":
+            content = str(message.get("content", ""))
+            query = extract_user_query(content)
+            message["content"] = content + QUERY_OUTPUT_SUFFIX + intent_output_suffix(query)
+            break
+    return [{"role": "system", "content": QUERY_SYSTEM_PROMPT}] + prepared
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -200,11 +284,11 @@ class Handler(BaseHTTPRequestHandler):
                     "choices": [{"index": 0, "delta": {"content": text}, "finish_reason": None}],
                 })
 
-        def finish() -> None:
+        def finish(finish_reason: str) -> None:
             event({
             "id": completion_id, "object": "chat.completion.chunk",
             "created": created, "model": model,
-            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
             })
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
@@ -224,7 +308,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, GATEWAY.health())
         elif self.path == "/v1/models":
             data = []
-            if GATEWAY.llm: data.append({"id": "qwen3.5-9b-110k", "object": "model"})
+            if GATEWAY.llm: data.append({"id": LLM_MODEL_ID, "object": "model"})
             if GATEWAY.embedding: data.append({"id": "qwen3-embedding-0.6b", "object": "model"})
             if GATEWAY.reranker: data.append({"id": "qwen3-reranker-0.6b", "object": "model"})
             self.send_json(HTTPStatus.OK, {"object": "list", "data": data})
@@ -236,41 +320,68 @@ class Handler(BaseHTTPRequestHandler):
             request = self.read_json()
             if self.path == "/v1/chat/completions":
                 if not GATEWAY.llm: raise RuntimeError("LLM worker is disabled")
-                configured_max_tokens = int(os.environ.get("RK_LLM_DEFAULT_MAX_TOKENS", "1536"))
-                requested_max_tokens = int(
-                    request.get("max_tokens", request.get("max_new_tokens", configured_max_tokens))
+                configured_max_tokens = int(os.environ.get("RK_LLM_DEFAULT_MAX_TOKENS", "512"))
+                requested_max_tokens = int(request.get(
+                    "max_completion_tokens",
+                    request.get("max_tokens", request.get("max_new_tokens", configured_max_tokens)),
+                ))
+                # Enforce the board-wide output budget. This leaves room for
+                # retrieved context within the 4K-token LLM session.
+                model = request.get("model", LLM_MODEL_ID)
+                is_query_model = model == QUERY_MODEL_ID
+                max_allowed_tokens = (
+                    min(QUERY_MAX_TOKENS, configured_max_tokens)
+                    if is_query_model
+                    else configured_max_tokens
                 )
-                # LightRAG clients may send a conservative max_tokens value.
-                # Keep a board-wide floor so multi-section Chinese answers are
-                # not cut off midway by that client default.
-                max_new_tokens = max(requested_max_tokens, configured_max_tokens)
+                max_new_tokens = min(max(requested_max_tokens, 1), max_allowed_tokens)
                 print(
                     f"gateway: chat requested_max_tokens={requested_max_tokens} "
-                    f"resolved_max_new_tokens={max_new_tokens}",
+                    f"resolved_max_new_tokens={max_new_tokens} model={model}",
                     file=sys.stderr,
                     flush=True,
                 )
+                messages = request["messages"]
+                if is_query_model:
+                    # LightRAG's retrieval template is a large user message.
+                    # Put the output contract at its end, nearest to the
+                    # generation turn, rather than relying on a distant system
+                    # instruction that a small model may underweight.
+                    messages = prepare_query_messages(messages)
                 worker_request = {
                     "id": request.get("id", str(uuid.uuid4())),
-                    "messages": request["messages"],
+                    "messages": messages,
                     "max_new_tokens": max_new_tokens,
                     "enable_thinking": bool(request.get("enable_thinking", False)),
                 }
-                model = request.get("model", "qwen3.5-9b-110k")
                 if request.get("stream", False):
                     write_delta, finish_stream = self.begin_chat_stream(model=model)
+                    finish_reason = "stop"
                     try:
-                        GATEWAY.llm.request_stream(worker_request, write_delta)
+                        reply = GATEWAY.llm.request_stream(worker_request, write_delta)
+                        finish_reason = str(reply.get("finish_reason", "stop"))
+                        print(
+                            f"gateway: chat finished model={model} finish_reason={finish_reason}",
+                            file=sys.stderr,
+                            flush=True,
+                        )
                     finally:
                         # A disconnected browser may also reject the final SSE
                         # marker. The daemon response was already drained above.
                         try:
-                            finish_stream()
+                            finish_stream(finish_reason)
                         except (BrokenPipeError, ConnectionResetError, OSError):
                             pass
                     return
                 reply = GATEWAY.llm.request(worker_request)
                 metrics = reply.get("metrics", {})
+                print(
+                    f"gateway: chat finished model={model} "
+                    f"finish_reason={reply.get('finish_reason', 'stop')} "
+                    f"output_tokens={metrics.get('output_tokens', 0)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 usage = {
                     "prompt_tokens": int(metrics.get("input_tokens", 0)),
                     "completion_tokens": int(metrics.get("output_tokens", 0)),
@@ -281,14 +392,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, {
                     "id": "chatcmpl-" + str(uuid.uuid4()), "object": "chat.completion",
                     "created": int(time.time()), "model": model,
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": reply["text"]}, "finish_reason": "stop"}],
+                    "choices": [{"index": 0, "message": {"role": "assistant", "content": reply["text"]}, "finish_reason": reply.get("finish_reason", "stop")}],
                     "usage": usage,
                     "rk_metrics": metrics,
                 })
                 return
             if self.path == "/v1/embeddings":
                 if not GATEWAY.embedding: raise RuntimeError("embedding worker is disabled")
-                reply = GATEWAY.embedding.request({"id": str(uuid.uuid4()), "input": request["input"]})
+                reply = GATEWAY.request_vector(
+                    GATEWAY.embedding, {"id": str(uuid.uuid4()), "input": request["input"]}
+                )
                 # Rockchip's Qwen3 embedding exporter exposes the final hidden
                 # state directly. Qwen's retrieval recipe L2-normalizes it
                 # before cosine search; perform that missing postprocess here.
@@ -308,7 +421,7 @@ class Handler(BaseHTTPRequestHandler):
                 worker_request = {"id": str(uuid.uuid4()), "query": request["query"], "documents": documents}
                 if request.get("instruction"):
                     worker_request["instruction"] = request["instruction"]
-                reply = GATEWAY.reranker.request(worker_request)
+                reply = GATEWAY.request_vector(GATEWAY.reranker, worker_request)
                 pairs = sorted(enumerate(reply["scores"]), key=lambda item: item[1], reverse=True)
                 self.send_json(HTTPStatus.OK, {"results": [
                     {"index": index, "relevance_score": score, "document": documents[index]}

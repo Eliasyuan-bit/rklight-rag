@@ -1,6 +1,30 @@
 // Lightweight shared FIFO indicator. No DOM observers or fetch interception:
 // the WebUI timer remains entirely owned by the upstream React application.
 (() => {
+  // One-time migration to the tuned mixed-retrieval defaults. Subsequent
+  // manual choices remain untouched.
+  const defaultsKey = 'rk3588-rag-defaults-mix-v2';
+  if (!localStorage.getItem(defaultsKey)) {
+    try {
+      const storageKey = 'settings-storage';
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '{"state":{},"version":23}');
+      stored.state ||= {};
+      stored.state.querySettings = {
+        ...(stored.state.querySettings || {}),
+        mode: 'mix',
+        top_k: 6,
+        chunk_top_k: 3,
+        max_entity_tokens: 500,
+        max_relation_tokens: 300,
+        max_total_tokens: 3000,
+        enable_rerank: true,
+        stream: true,
+      };
+      localStorage.setItem(storageKey, JSON.stringify(stored));
+      localStorage.setItem(defaultsKey, '1');
+    } catch (_) { /* an invalid client store falls back to upstream defaults */ }
+  }
+
   const id = 'rk3588-query-status-banner';
   const style = document.createElement('style');
   style.textContent = `#${id}{display:none;margin:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;line-height:inherit}`;

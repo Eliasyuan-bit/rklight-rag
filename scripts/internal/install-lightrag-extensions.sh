@@ -21,13 +21,25 @@ adb -s "$ADB_SERIAL" shell "
   test -f \$routers/query_routes.py
   test -f \$routers/document_routes.py
   mkdir -p '$BOARD_DATA_ROOT/extensions'
+  cp '$EXT_ROOT/rk_lexical_retrieval.py' \$package/rk_lexical_retrieval.py
+  cp '$EXT_ROOT/rk_chunk_citations.py' \$package/rk_chunk_citations.py
+  cp '$EXT_ROOT/rk_chunk_budget.py' \$package/rk_chunk_budget.py
+  cp '$EXT_ROOT/rk_source_policy.py' \$package/rk_source_policy.py
   cp '$EXT_ROOT/selective_ingest_router.py' \$routers/selective_ingest_router.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_upload_hook.py' \$routers/document_routes.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_document_grouping_hook.py' \$routers/document_routes.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_query_gate_hook.py' \$routers/query_routes.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_queue_progress_hook.py' \$routers/query_routes.py
-  webui=\$(find \$package -type f -name index.html -path '*webui*' -print -quit)
-  test -n \"\$webui\"
+  '$PYTHON' '$EXT_ROOT/install_lightrag_query_default_hook.py' \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_lexical_retrieval_hook.py' \$package/operate.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_focused_merge_hook.py' \$package/operate.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_retrieval_trace_hook.py' \$package/utils.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_source_policy_hook.py' \$package/utils.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_chunk_citation_hook.py' \$package/utils.py \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_chunk_budget_hook.py' \$package/utils.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_answer_cache_version_hook.py' \$package/operate.py
+  webui=\$package/api/webui/index.html
+  test -f \"\$webui\"
   python3 '$EXT_ROOT/install_lightrag_query_status_banner.py' \"\$(dirname \"\$webui\")\" '$EXT_ROOT/webui/query-status-banner.js'
 "
 
