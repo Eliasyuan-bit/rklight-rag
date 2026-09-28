@@ -15,7 +15,7 @@
 
 | 位置 | 改动 |
 | --- | --- |
-| `core/lightrag-extensions/rk_chunk_citations.py` | 为保留下来的证据 chunk 分配 `reference_id`，带出 `file_path`、`chunk_id` 和可识别的章节。 |
+| `core/lightrag-extensions/rk_chunk_citations.py` | 为保留下来的证据 chunk 分配 `reference_id`，带出 `file_path`、`chunk_id` 和可识别的章节；已验证的表格证据还会带出表格标题及匹配行。 |
 | `core/lightrag-extensions/rk_reference_markdown.py` | 生成回答末尾的引用链接，隐藏 `.kg`、`.text` 入库后缀。 |
 | `core/lightrag-extensions/rk_reference_preview.py` | 提供有大小上限的 chunk 元数据、上传分组标识，以及安全的 Markdown 整页渲染与高亮。 |
 | `core/lightrag-extensions/install_lightrag_document_reference_footer_hook.py` | 查出引用 chunk 所属的真实上传批次，在回答尾注中按文档合并；真正流式生成时在答案 token 之后查，不延迟首字。缓存命中或非流式响应会在返回完整回答前查；原始证据 API 不变。 |
@@ -24,7 +24,7 @@
 | `core/lightrag-extensions/webui/query-status-banner.js` | 移除旧的新标签页点击拦截；仍负责查询状态和既有网页默认参数。 |
 | `scripts/internal/install-lightrag-extensions.sh` | 在安装 LightRAG 扩展时同步 Python 模块、安装接口 Hook，并将阅读栏脚本加入 WebUI。 |
 
-阅读接口：`GET /query/references/{chunk_id}` 返回 chunk 元数据；`GET /query/references/{chunk_id}/view` 返回完整的 Markdown 阅读页。页面中的原始 HTML 被禁用，引用 ID 被校验，不使用客户端传入的文件路径读取文档。
+阅读接口：`GET /query/references/{chunk_id}` 返回 chunk 元数据；`GET /query/references/{chunk_id}/view` 返回完整的 Markdown 阅读页。查询响应中的每项引用包括 `chunk_id`、可选 `section`，以及表格父证据的可选 `evidence_location`（表格标题与匹配行）；页面中的原始 HTML 被禁用，引用 ID 被校验，不使用客户端传入的文件路径读取文档。
 
 ## 已验证
 
