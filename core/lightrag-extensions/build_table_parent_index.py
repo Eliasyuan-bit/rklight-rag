@@ -42,9 +42,16 @@ def build(input_path: Path) -> dict[str, Any]:
                     ),
                     "table_type": parent["table_type"],
                     "source_file": parent["source_file"],
+                    "row_index": row_index,
+                    "row": row,
+                    "fields": parent.get("row_records", [])[row_index].get("fields", {})
+                    if row_index < len(parent.get("row_records", [])) else {},
+                    "model_key": parent.get("row_records", [])[row_index].get("model_key", "")
+                    if row_index < len(parent.get("row_records", [])) else "",
                 }
-                for row in parent["rows"]
+                for row_index, row in enumerate(parent["rows"])
             ]
+            parent["source_chunk_order"] = value.get("chunk_order_index")
             tables.append(parent)
             children.extend(parent["child_rows"])
     return {"version": 1, "tables": tables, "children": children}

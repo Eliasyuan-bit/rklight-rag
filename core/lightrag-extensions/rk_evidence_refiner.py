@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import re
 from typing import Any
 from urllib.request import Request, urlopen
@@ -107,6 +108,176 @@ def _enabled() -> bool:
         "yes",
         "on",
     }
+
+
+def apply_evidence_coverage_gate(
+    chunks: list[dict[str, Any]], query: str
+) -> list[dict[str, Any]]:
+    """Annotate and filter structurally invalid table evidence.
+
+    This is intentionally deterministic and conservative.  It never invents
+    missing values: a typed table parent is retained only when its selected
+    row was validated and the requested model/metric is present.  If no valid
+    table evidence remains, ordinary narrative candidates are preserved so
+    the answer layer can state that the document lacks sufficient evidence.
+    """
+    try:
+        from rk_table_parent import table_query_type
+    except ImportError:
+        return chunks
+    expected = table_query_type(query)
+    if expected is None:
+        return chunks
+    def _compact(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+    model_terms = [
+        _compact(term)
+        for term in re.findall(r"\b(?:qwen|gemma|lfm|glm)[a-z0-9._-]*\b", query, re.I)
+    ]
+    metric_terms = [term for term in ("ttft", "tpot", "decode", "tps", "性能", "精度", "量化")
+                    if term in query.casefold()]
+    valid_tables = []
+    kept: list[dict[str, Any]] = []
+    for chunk in chunks:
+        item = chunk.copy()
+        if not item.get("table_parent") or item.get("table_type") != expected:
+            kept.append(item)
+            continue
+        content = str(item.get("content") or "").casefold()
+        compact_content = _compact(content)
+        row_valid = item.get("table_evidence_valid")
+        model_ok = not model_terms or any(term in compact_content for term in model_terms)
+        metric_ok = not metric_terms or any(term in content for term in metric_terms)
+        passed = bool(row_valid) and model_ok and metric_ok
+        item["evidence_coverage"] = {
+            "gate": "pass" if passed else "needs_retrieval",
+            "table_type": expected,
+            "model": model_ok,
+            "metric": metric_ok,
+            "row_valid": bool(row_valid),
+        }
+        if passed:
+            valid_tables.append(item)
+        else:
+            item["evidence_gate_dropped"] = True
+    if valid_tables:
+        # A typed table is authoritative for a typed table question; retaining
+        # unrelated prose/table types would reintroduce cross-row pollution.
+        return valid_tables
+    return kept
+
+
+def apply_evidence_contract(
+    chunks: list[dict[str, Any]], query: str
+) -> list[dict[str, Any]]:
+    """Attach a query-shape evidence contract without using an LLM judge."""
+    folded = query.casefold()
+    if any(term in folded for term in ("对比", "比较", "区别", " vs ", " versus ")):
+        contract = "comparison"
+    elif any(term in folded for term in ("命令", "参数", "版本如何输出", "怎么用", "--")):
+        contract = "command"
+    elif any(term in folded for term in ("流程", "步骤", "怎么", "如何", "复现")):
+        contract = "procedure"
+    else:
+        contract = "general"
+    object_terms = [term.casefold() for term in re.findall(
+        r"\b(?:qwen|gemma|lfm|glm)[a-z0-9._-]*\b", query, re.I
+    )]
+    anchor_terms = [term.casefold() for term in re.findall(r"\b[A-Za-z][A-Za-z0-9_.+-]{2,}\b", query)]
+    if contract == "comparison" and len(object_terms) < 2:
+        object_terms = [term.casefold() for term in re.findall(
+            r"\b[A-Za-z][A-Za-z0-9._+-]*\b", query
+        ) if any(char.isdigit() for char in term)]
+    contracted: list[dict[str, Any]] = []
+    for chunk in chunks:
+        item = chunk.copy()
+        content = str(item.get("content") or "")
+        if contract == "command":
+            passed = bool(re.search(r"(?:`[^`]+`|\$?\s*(?:[A-Za-z][\w.-]*)(?:\s+--?[A-Za-z][\w-]*)?)", content))
+        elif contract == "procedure":
+            step_count = len(re.findall(r"(?m)^\s*(?:[-*+]\s+|\d+[.)]\s+)", content))
+            anchor_ok = not anchor_terms or any(term in content.casefold() for term in anchor_terms)
+            passed = anchor_ok and (step_count >= 2 or content.count("然后") >= 1 or content.count("→") >= 2)
+        elif contract == "comparison":
+            passed = len(object_terms) >= 2 and all(term in content.casefold() for term in object_terms)
+        else:
+            passed = True
+        item["evidence_contract"] = {"type": contract, "status": "pass" if passed else "needs_retrieval"}
+        # Avoid mutating LightRAG's shared candidate dictionaries.
+        contracted.append(item)
+    return contracted
+
+
+def recover_contract_evidence(
+    chunks: list[dict[str, Any]], query: str, global_config: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Perform at most one sparse recovery pass when a contract has no hit."""
+    if any(
+        (item.get("evidence_contract") or {}).get("status") == "pass"
+        for item in chunks
+    ):
+        return chunks
+    working_dir = global_config.get("working_dir") or global_config.get("WORKING_DIR")
+    if not working_dir or os.getenv("RK_CONTRACT_RECOVERY_ENABLED", "true").lower() not in {
+        "1", "true", "yes", "on"
+    }:
+        return chunks
+    store_path = Path(str(working_dir)) / "kv_store_text_chunks.json"
+    if not store_path.is_file():
+        return chunks
+    try:
+        from rk_lexical_retrieval import _bm25
+        profile = str((chunks[0].get("evidence_contract") or {}).get("type") or "general") if chunks else "general"
+        suffix = {
+            "command": " command parameter output",
+            "procedure": " steps process procedure",
+            "comparison": " comparison difference specification",
+        }.get(profile, "")
+        recovered = _bm25(query + suffix, store_path, max(1, int(os.getenv("RK_CONTRACT_RECOVERY_TOP_K", "3"))))
+    except (ImportError, OSError, ValueError, json.JSONDecodeError):
+        return chunks
+    known = {str(item.get("chunk_id") or item.get("id") or "") for item in chunks}
+    additions = []
+    recovered = apply_evidence_contract(recovered, query)
+    for item in recovered:
+        chunk_id = str(item.get("chunk_id") or item.get("id") or "")
+        if chunk_id and chunk_id not in known and (
+            item.get("evidence_contract") or {}
+        ).get("status") == "pass":
+            candidate = dict(item)
+            candidate["supplemental_retrieval"] = True
+            additions.append(candidate)
+    return chunks + additions
+
+
+def apply_query_anchor_gate(chunks: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    """Prefer candidates carrying an explicit technical anchor from the query."""
+    raw_anchors = re.findall(
+        r"\b[A-Za-z][A-Za-z0-9._:+/-]{3,}\b", query
+    )
+    anchors = [re.sub(r"[^a-z0-9]+", "", term.casefold()) for term in raw_anchors]
+    if not anchors:
+        return chunks
+    matched = []
+    for item in chunks:
+        text = str(item.get("full_content") or item.get("content") or "").casefold()
+        compact_text = re.sub(r"[^a-z0-9]+", "", text)
+        hits = [term for term in anchors if term in compact_text]
+        copy = item.copy()
+        copy["query_anchor_hits"] = hits
+        if hits:
+            matched.append(copy)
+    if matched:
+        return matched
+    # An all-caps project/product token or a versioned identifier is an
+    # explicit object request. If no source contains it, guessing from a
+    # semantically similar document is less safe than returning no evidence.
+    strict = any(
+        (term.isupper() and len(term) >= 5) or any(char.isdigit() for char in term)
+        for term in raw_anchors
+    )
+    return [] if strict else chunks
 
 
 def _split_sentences(text: str) -> list[str]:

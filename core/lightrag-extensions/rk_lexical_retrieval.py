@@ -47,6 +47,9 @@ _SEMANTIC_QUERY_INTENTS = (
     "explain",
     "summarize",
 )
+_TABLE_QUERY_INTENTS = (
+    "性能", "规格", "参数", "吞吐", "精度", "量化", "对比表", "ttft", "tpot", "decode", "tps",
+)
 _COMPOSITE_IDENTIFIER_RE = re.compile(
     r"[A-Za-z][A-Za-z0-9]*(?:[._/:+-][A-Za-z0-9]+)+"
 )
@@ -93,6 +96,10 @@ def query_retrieval_profile(query: str) -> str:
     contribution; it is not a hard router and does not encode domain answers.
     """
     folded = query.casefold()
+    # Technical metric/model questions need a row-aware sparse signal. This
+    # remains a soft profile: vector retrieval and reranking still run.
+    if any(term in folded for term in _TABLE_QUERY_INTENTS):
+        return "table"
     has_exact_intent = any(term in folded for term in _EXACT_QUERY_INTENTS)
     has_exact_shape = any(
         pattern.search(query)
@@ -147,6 +154,12 @@ def direct_evidence_coverage(query: str, content: str) -> tuple[int, int, tuple[
 
 def query_aware_rrf_weights(query: str) -> tuple[str, float, float]:
     profile = query_retrieval_profile(query)
+    if profile == "table":
+        return (
+            profile,
+            float(os.getenv("RK_RRF_TABLE_VECTOR_WEIGHT", "0.85")),
+            float(os.getenv("RK_RRF_TABLE_LEXICAL_WEIGHT", "2.75")),
+        )
     if profile == "exact":
         return (
             profile,
@@ -170,7 +183,7 @@ def query_aware_rerank_top_n(
     query: str, chunks: list[dict[str, Any]], requested_top_k: int
 ) -> int:
     """Expose enough exact-query candidates for post-rerank fusion."""
-    if query_retrieval_profile(query) != "exact":
+    if query_retrieval_profile(query) not in ("exact", "table"):
         return requested_top_k
     maximum = max(requested_top_k, int(os.getenv("RK_EXACT_RERANK_CANDIDATE_K", "12")))
     return min(len(chunks), maximum)
@@ -187,7 +200,7 @@ def fuse_query_aware_rerank(
     queries additionally retain the best substantive BM25 passage so a
     command, version, path, or error code cannot disappear after recall.
     """
-    if query_retrieval_profile(query) != "exact" or not reranked_chunks:
+    if query_retrieval_profile(query) not in ("exact", "table") or not reranked_chunks:
         return reranked_chunks
 
     rrf_k = float(os.getenv("RK_POST_RERANK_RRF_K", "60"))
@@ -323,7 +336,7 @@ def log_chunk_stage(
 
 def retrieval_candidate_k(requested_top_k: int, query: str = "") -> int:
     configured = int(os.getenv("RK_RETRIEVAL_CANDIDATE_K", "6"))
-    if query and query_retrieval_profile(query) == "exact":
+    if query and query_retrieval_profile(query) in ("exact", "table"):
         configured = max(
             configured,
             int(os.getenv("RK_EXACT_RETRIEVAL_CANDIDATE_K", "12")),
@@ -470,6 +483,10 @@ def _load_index(path: Path):
                 "table_type": table.get("table_type", "unknown"),
                 "table_parent": True,
                 "source_type": "table-parent",
+                "table_headers": table.get("headers", []),
+                "table_rows": table.get("rows", []),
+                "row_records": table.get("row_records", []),
+                "source_chunk_order": table.get("source_chunk_order"),
             }
             document["search_content"] = _index_text(
                 document["content"], str(document["table_type"])

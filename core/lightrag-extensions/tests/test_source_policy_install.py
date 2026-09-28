@@ -37,6 +37,11 @@ class SourcePolicyInstallTest(unittest.TestCase):
         self.assertIn("from lightrag.rk_evidence_refiner import", installed)
         self.assertIn("query_aware_rerank_top_n", installed)
         self.assertIn("fuse_query_aware_rerank", installed)
+        self.assertIn("prioritize_section_parents", installed)
+        self.assertLess(
+            installed.index("prioritize_section_parents"),
+            installed.index("apply_rerank_if_enabled"),
+        )
         self.assertIn("top_n=rerank_candidate_k", installed)
         self.assertLess(
             installed.index("apply_source_authority_policy"),
@@ -69,6 +74,23 @@ class SourcePolicyInstallTest(unittest.TestCase):
         self.assertIn("query_aware_rerank_top_n", installed)
         self.assertIn(installer.MARKER, installed)
         self.assertNotIn(installer.V2_MARKER, installed)
+
+    def test_upgrades_v5_installation_with_section_parent_before_rerank(self):
+        source = (
+            "from lightrag.rk_table_parent import prioritize_typed_table_parents\n"
+            "async def process():\n"
+            "        unique_chunks = prioritize_typed_table_parents(unique_chunks, query)\n"
+            "        rerank_top_k = query_param.chunk_top_k or len(unique_chunks)\n"
+            f"        {installer.V5_MARKER}\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "utils.py"
+            target.write_text(source, encoding="utf-8")
+            installer.install(target)
+            installed = target.read_text(encoding="utf-8")
+        self.assertIn("from lightrag.rk_section_parent import prioritize_section_parents", installed)
+        self.assertIn("unique_chunks = prioritize_section_parents(", installed)
+        self.assertIn(installer.MARKER, installed)
 
 
 if __name__ == "__main__":

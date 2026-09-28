@@ -288,12 +288,18 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
             "semantic",
         )
         self.assertEqual(module.query_retrieval_profile("USB错误是为什么"), "balanced")
+        self.assertEqual(module.query_retrieval_profile("Qwen3-4B的性能数据是多少"), "table")
 
         exact_profile, exact_vector, exact_lexical = module.query_aware_rrf_weights(
             "burn_stress版本如何输出"
         )
         self.assertEqual(exact_profile, "exact")
         self.assertGreater(exact_lexical, exact_vector)
+        table_profile, table_vector, table_lexical = module.query_aware_rrf_weights(
+            "Qwen3-4B的性能数据是多少"
+        )
+        self.assertEqual(table_profile, "table")
+        self.assertGreater(table_lexical, table_vector)
 
     def test_exact_query_expands_rerank_window_and_protects_lexical_top_one(self):
         module = load_module()

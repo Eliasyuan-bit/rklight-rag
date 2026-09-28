@@ -26,6 +26,7 @@ adb -s "$ADB_SERIAL" shell "
   cp '$EXT_ROOT/rk_chunk_budget.py' \$package/rk_chunk_budget.py
   cp '$EXT_ROOT/rk_source_policy.py' \$package/rk_source_policy.py
   cp '$EXT_ROOT/rk_evidence_refiner.py' \$package/rk_evidence_refiner.py
+  cp '$EXT_ROOT/rk_section_parent.py' \$package/rk_section_parent.py
   cp '$EXT_ROOT/rk_reference_markdown.py' \$package/rk_reference_markdown.py
   cp '$EXT_ROOT/rk_reference_preview.py' \$package/rk_reference_preview.py
   cp '$EXT_ROOT/rk_ingest_model_mode.py' \$package/rk_ingest_model_mode.py

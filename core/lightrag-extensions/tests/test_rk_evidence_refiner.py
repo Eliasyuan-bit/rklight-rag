@@ -2,7 +2,9 @@ import importlib.util
 import os
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+import sys
+import tempfile
 
 
 MODULE_PATH = Path(__file__).parents[1] / "rk_evidence_refiner.py"
@@ -255,6 +257,96 @@ class EvidenceRefinerTest(unittest.IsolatedAsyncioTestCase):
             chunks, "Qwen2.5-7B性能", max_per_chunk=3, max_candidates=2
         )
         self.assertEqual({unit["chunk_index"] for unit in candidates}, {0, 1})
+
+    def test_table_coverage_gate_drops_unvalidated_typed_parent(self):
+        module = load_module()
+        table_spec = importlib.util.spec_from_file_location(
+            "rk_table_parent", MODULE_PATH.parent / "rk_table_parent.py"
+        )
+        table_module = importlib.util.module_from_spec(table_spec)
+        assert table_spec.loader
+        sys.modules["rk_table_parent"] = table_module
+        table_spec.loader.exec_module(table_module)
+        chunks = [
+            {"chunk_id": "bad", "table_parent": True, "table_type": "llm_performance",
+             "content": "Qwen3-4B TTFT 88.47", "table_evidence_valid": False},
+            {"chunk_id": "context", "content": "性能表未提供完整列信息。"},
+        ]
+        result = module.apply_evidence_coverage_gate(chunks, "Qwen3-4B的性能数据是多少")
+        self.assertEqual([item["chunk_id"] for item in result], ["context"])
+
+    def test_table_coverage_gate_matches_spaced_model_identifier(self):
+        module = load_module()
+        table_spec = importlib.util.spec_from_file_location(
+            "rk_table_parent", MODULE_PATH.parent / "rk_table_parent.py"
+        )
+        table_module = importlib.util.module_from_spec(table_spec)
+        assert table_spec.loader
+        sys.modules["rk_table_parent"] = table_module
+        table_spec.loader.exec_module(table_module)
+        chunks = [
+            {
+                "chunk_id": "server",
+                "table_parent": True,
+                "table_type": "server_config",
+                "table_evidence_valid": True,
+                "content": (
+                    "- Model Name = Qwen 2.5 7B\n"
+                    "- CPU = 32-core CPU\n"
+                    "- Estimated Time = ~105 minutes"
+                ),
+            },
+        ]
+        result = module.apply_evidence_coverage_gate(
+            chunks, "转换 Qwen2.5-7B 推荐什么服务器配置，预计多久"
+        )
+        self.assertEqual([item["chunk_id"] for item in result], ["server"])
+
+    def test_contract_marks_incomplete_procedure_and_complete_command(self):
+        module = load_module()
+        procedure = module.apply_evidence_contract(
+            [{"chunk_id": "p", "content": "只描述准备环境。"}], "如何复现部署流程"
+        )
+        self.assertEqual(procedure[0]["evidence_contract"]["status"], "needs_retrieval")
+        command = module.apply_evidence_contract(
+            [{"chunk_id": "c", "content": "执行 `rknn-smi info` 查看状态。"}], "命令怎么用"
+        )
+        self.assertEqual(command[0]["evidence_contract"]["status"], "pass")
+
+    def test_contract_recovery_runs_once_and_marks_new_candidate(self):
+        module = load_module()
+        chunks = [{"chunk_id": "old", "content": "只描述准备环境。",
+                   "evidence_contract": {"type": "procedure", "status": "needs_retrieval"}}]
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory) / "kv_store_text_chunks.json"
+            store.write_text("{}", encoding="utf-8")
+            fake_lexical = MagicMock()
+            fake_lexical._bm25.return_value = [
+                {"chunk_id": "new", "content": "1. 准备环境\n2. 启动服务"}
+            ]
+            with patch.dict(os.environ, {"RK_CONTRACT_RECOVERY_ENABLED": "true"}), patch.dict(
+                sys.modules, {"rk_lexical_retrieval": fake_lexical}
+            ):
+                result = module.recover_contract_evidence(chunks, "如何复现部署流程", {"working_dir": directory})
+        self.assertEqual([item["chunk_id"] for item in result], ["old", "new"])
+        self.assertTrue(result[-1]["supplemental_retrieval"])
+
+    def test_query_anchor_gate_removes_unrelated_sources_only_when_anchor_exists(self):
+        module = load_module()
+        chunks = [
+            {"chunk_id": "right", "content": "ROCKRAGCLAW 部署步骤"},
+            {"chunk_id": "wrong", "content": "RKNN3 测试步骤"},
+        ]
+        result = module.apply_query_anchor_gate(chunks, "介绍 ROCKRAGCLAW 怎么复现")
+        self.assertEqual([item["chunk_id"] for item in result], ["right"])
+        self.assertEqual(
+            [item["chunk_id"] for item in module.apply_query_anchor_gate(chunks, "介绍 ROCKRAGCLAW 怎么复现")],
+            ["right"],
+        )
+        self.assertEqual(module.apply_query_anchor_gate(
+            [{"chunk_id": "wrong", "content": "RKNN3 测试步骤"}],
+            "ROCKRAGCLAW 怎么复现",
+        ), [])
 
     async def test_reranker_failure_returns_original_chunks(self):
         module = load_module()
