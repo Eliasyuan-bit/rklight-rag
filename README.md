@@ -4,7 +4,7 @@
 
 LightRAG 负责 WebUI、文档入库、知识图谱、检索和数据存储；RK3588 负责服务编排，RK1828 提供本地模型推理。本仓库维护两者之间的 gateway、文档路由、PDF 视觉解析和 LightRAG Hook，不保存模型权重或知识库数据。
 
-部署步骤见 [安装文档](docs/install.md)，环境变量与配置文件说明见 [环境配置](docs/environment.md)。
+部署步骤见 [安装文档](docs/install.md)，环境变量与配置文件说明见 [环境配置](docs/environment.md)。之前的准确性评测和逐轮修复见 [RAG 准确性回归记录](docs/rag-accuracy-validation.md)，引用阅读栏的行为与限制见 [引用预览说明](docs/reference-preview.md)。
 
 日常部署脚本说明见 [scripts/README.md](scripts/README.md)。
 
@@ -28,6 +28,7 @@ LightRAG 只访问 RK3588 上的 Model Gateway；gateway 负责将请求转给 R
 | 文档分组 | `document_routes.py` | 在 WebUI 中将同源 P/P! 文档显示为一条，并支持一起删除。 |
 | 查询 FIFO | `query_routes.py` | LLM 请求串行执行；队满时返回 `429`。 |
 | 排队状态 | `query_routes.py` + WebUI | 显示当前请求的运行或排队状态，不暴露其他用户的问题。 |
+| 引用预览 | `query_routes.py` + WebUI | 从回答引用打开右侧 Markdown 阅读栏，定位并高亮命中 chunk；同一上传文档的命中在阅读栏内分组。 |
 
 扩展安装器只支持 `deploy/lightrag-upstream.env` 中固定的上游提交；升级 LightRAG 前需重新验证 Hook。
 

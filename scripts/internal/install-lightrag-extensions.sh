@@ -25,6 +25,8 @@ adb -s "$ADB_SERIAL" shell "
   cp '$EXT_ROOT/rk_chunk_citations.py' \$package/rk_chunk_citations.py
   cp '$EXT_ROOT/rk_chunk_budget.py' \$package/rk_chunk_budget.py
   cp '$EXT_ROOT/rk_source_policy.py' \$package/rk_source_policy.py
+  cp '$EXT_ROOT/rk_reference_markdown.py' \$package/rk_reference_markdown.py
+  cp '$EXT_ROOT/rk_reference_preview.py' \$package/rk_reference_preview.py
   cp '$EXT_ROOT/selective_ingest_router.py' \$routers/selective_ingest_router.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_upload_hook.py' \$routers/document_routes.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_document_grouping_hook.py' \$routers/document_routes.py
@@ -36,11 +38,16 @@ adb -s "$ADB_SERIAL" shell "
   '$PYTHON' '$EXT_ROOT/install_lightrag_retrieval_trace_hook.py' \$package/utils.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_source_policy_hook.py' \$package/utils.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_chunk_citation_hook.py' \$package/utils.py \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_reference_footer_hook.py' \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_reference_preview_hook.py' \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_reference_group_hook.py' \$routers/query_routes.py
+  '$PYTHON' '$EXT_ROOT/install_lightrag_document_reference_footer_hook.py' \$routers/query_routes.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_chunk_budget_hook.py' \$package/utils.py
   '$PYTHON' '$EXT_ROOT/install_lightrag_answer_cache_version_hook.py' \$package/operate.py
   webui=\$package/api/webui/index.html
   test -f \"\$webui\"
   python3 '$EXT_ROOT/install_lightrag_query_status_banner.py' \"\$(dirname \"\$webui\")\" '$EXT_ROOT/webui/query-status-banner.js'
+  python3 '$EXT_ROOT/install_lightrag_reference_reader.py' \"\$(dirname \"\$webui\")\" '$EXT_ROOT/webui/reference-reader.js'
 "
 
 if [[ "$PARSER_MODE" == "rkvision" ]]; then
