@@ -483,6 +483,10 @@ def apply_source_authority_policy(
         key=lambda pair: (-float(pair[1].get("rerank_score", 0.0)), pair[0])
     )
     ranked = [item for _, item in adjusted]
+    relation_fact_query = any(
+        str(item.get("retrieval_profile") or "") == "relation_fact"
+        for item in ranked
+    )
     typed_parents = _matching_parent_tables(query, ranked)
     if typed_parents:
         # The parent contains the schema and all rows; retaining unrelated
@@ -496,7 +500,7 @@ def apply_source_authority_policy(
         for item in ranked
     ]
     best_named_match = max(named_matches, default=0)
-    if best_named_match >= 1:
+    if best_named_match >= 1 and not relation_fact_query:
         ranked = [
             item
             for item in ranked
@@ -504,11 +508,23 @@ def apply_source_authority_policy(
                 int(item.get("named_item_match_count", 0)),
                 int(item.get("named_section_match_count", 0)),
             ) == best_named_match
+            # A generic product name in a heading must not discard a passage
+            # that retrieval explicitly protected and that carries several
+            # query-expansion terms in its body.  This is common when a
+            # manual's topical section heading omits the product name.
+            or (
+                item.get("exact_retrieval_protected")
+                and int(item.get("exact_evidence_hits", 0)) >= 2
+            )
         ]
     protected_exact = [
         item for item in ranked if item.get("exact_retrieval_protected")
     ]
-    if protected_exact:
+    # Exact/document-fact protection identifies a self-contained answer and
+    # may safely replace weaker candidates.  Relation-fact protection only
+    # guarantees the first edge of a compound question; collapsing to that
+    # chunk discards the downstream evidence required for the second hop.
+    if protected_exact and not relation_fact_query:
         ranked = protected_exact
     complete_tables = [
         item for item in ranked if float(item.get("table_evidence_boost", 1.0)) > 1.0

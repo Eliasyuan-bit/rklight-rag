@@ -16,6 +16,27 @@ def load_module():
 
 
 class QueryContractTest(unittest.TestCase):
+    def test_vector_metrics_record_native_prefill_tokens_and_tps(self):
+        module = load_module()
+        module.CHAT_METRICS.clear()
+        module.CHAT_METRICS_SEQUENCE = 0
+
+        module.record_vector_metrics(
+            "embedding",
+            elapsed_ms=30.0,
+            input_items=1,
+            input_chars=18,
+            vector_dimensions=1024,
+            input_tokens=12,
+            tokens_per_item=[12],
+        )
+
+        record = module.chat_metrics_after(0)["records"][0]
+        self.assertEqual(record["input_tokens"], 12)
+        self.assertEqual(record["tokens_per_item"], [12])
+        self.assertEqual(record["input_tps"], 400.0)
+        self.assertEqual(record["token_note"], "native_prefill_tokens")
+
     def test_grounding_contract_is_near_generation_turn(self):
         module = load_module()
         original = [{"role": "user", "content": "context and question"}]
@@ -84,6 +105,20 @@ class QueryContractTest(unittest.TestCase):
         suffix = module.intent_output_suffix("怎么定位测试过程？")
         self.assertIn("操作步骤", suffix)
         self.assertIn("不重复", suffix)
+
+    def test_configuration_flow_is_compact_but_complete(self):
+        module = load_module()
+        suffix = module.intent_output_suffix("呼叫队列配置流程是什么？")
+        self.assertIn("三至五个必要操作步骤", suffix)
+        self.assertIn("不展开全部可选参数", suffix)
+        self.assertIn("不得补写上下文未出现的保存", suffix)
+        self.assertIn("删除操作不算配置步骤", suffix)
+
+    def test_supported_modes_uses_document_enumeration_contract(self):
+        module = load_module()
+        suffix = module.intent_output_suffix("UCM630x 支持哪些网络模式？")
+        self.assertIn("直接列出上下文明确给出的项目", suffix)
+        self.assertIn("不补充其他类别", suffix)
 
     def test_performance_how_question_is_not_misclassified_as_steps(self):
         module = load_module()

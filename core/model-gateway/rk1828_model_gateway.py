@@ -19,10 +19,12 @@ import sys
 import threading
 import time
 import uuid
+from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -229,6 +231,7 @@ class RkllmHttpWorker:
             "cache_prompt": False,
             "id_slot": 0,
             "chat_template_kwargs": {"enable_thinking": enable_thinking},
+            **({"stream_options": {"include_usage": True}} if stream else {}),
         }
 
     @staticmethod
@@ -268,6 +271,7 @@ class RkllmHttpWorker:
             request_timeout = float(os.getenv("RK_LLM_HTTP_TIMEOUT", "600"))
             finish_reason = "stop"
             downstream_open = True
+            metrics = {}
             with self._open(
                 "/v1/chat/completions",
                 self._chat_payload(payload, stream=True),
@@ -281,6 +285,12 @@ class RkllmHttpWorker:
                     if not data or data == "[DONE]":
                         continue
                     chunk = json.loads(data)
+                    if chunk.get("usage"):
+                        metrics = self._metrics(chunk)
+                        timings = chunk.get("timings") or {}
+                        for key in ("prompt_ms", "predicted_ms", "predicted_per_second"):
+                            if key in timings:
+                                metrics[key] = timings[key]
                     choice = (chunk.get("choices") or [{}])[0]
                     delta = choice.get("delta") or {}
                     text = str(delta.get("content") or "")
@@ -291,7 +301,7 @@ class RkllmHttpWorker:
                             downstream_open = False
                     if choice.get("finish_reason"):
                         finish_reason = str(choice["finish_reason"])
-            return {"ok": True, "finish_reason": finish_reason, "metrics": {}}
+            return {"ok": True, "finish_reason": finish_reason, "metrics": metrics}
 
     def stop(self) -> None:
         if not self.process or self.process.poll() is not None:
@@ -602,6 +612,77 @@ class Gateway:
 
 
 GATEWAY = Gateway()
+CHAT_METRICS_LOCK = threading.Lock()
+CHAT_METRICS = deque(maxlen=512)
+CHAT_METRICS_SEQUENCE = 0
+
+
+def record_chat_metrics(model: str, metrics: dict[str, Any], *, stream: bool,
+                        elapsed_ms: float, finish_reason: str, source: str = "native") -> None:
+    """Keep prompt-free usage records for a local, sequential Q&A benchmark."""
+    global CHAT_METRICS_SEQUENCE
+    with CHAT_METRICS_LOCK:
+        CHAT_METRICS_SEQUENCE += 1
+        CHAT_METRICS.append({
+            "sequence": CHAT_METRICS_SEQUENCE,
+            "kind": "llm",
+            "model": model,
+            "stream": stream,
+            "source": source,
+            "input_tokens": metrics.get("input_tokens"),
+            "output_tokens": metrics.get("output_tokens"),
+            "total_tokens": metrics.get("total_tokens"),
+            "prompt_ms": metrics.get("prompt_ms"),
+            "predicted_ms": metrics.get("predicted_ms"),
+            "decode_tps": metrics.get("predicted_per_second"),
+            "elapsed_ms": round(elapsed_ms, 1),
+            "finish_reason": finish_reason,
+        })
+
+
+def record_vector_metrics(kind: str, *, elapsed_ms: float,
+                          input_items: int | None = None,
+                          input_chars: int | None = None,
+                          candidate_count: int | None = None,
+                          query_chars: int | None = None,
+                          vector_dimensions: int | None = None,
+                          input_tokens: int | None = None,
+                          tokens_per_item: list[int] | None = None) -> None:
+    """Record vector request cost without retaining query or document text."""
+    global CHAT_METRICS_SEQUENCE
+    with CHAT_METRICS_LOCK:
+        CHAT_METRICS_SEQUENCE += 1
+        CHAT_METRICS.append({
+            "sequence": CHAT_METRICS_SEQUENCE,
+            "kind": kind,
+            "elapsed_ms": round(elapsed_ms, 1),
+            "input_items": input_items,
+            "input_chars": input_chars,
+            "candidate_count": candidate_count,
+            "query_chars": query_chars,
+            "vector_dimensions": vector_dimensions,
+            "input_tokens": input_tokens,
+            "tokens_per_item": tokens_per_item,
+            "input_tps": (
+                round(input_tokens * 1000 / elapsed_ms, 2)
+                if input_tokens is not None and elapsed_ms > 0 else None
+            ),
+            "token_note": (
+                "native_prefill_tokens"
+                if input_tokens is not None
+                else "native_vector_daemon_does_not_return_token_count"
+            ),
+        })
+
+
+def chat_metrics_after(after: int) -> dict[str, Any]:
+    with CHAT_METRICS_LOCK:
+        return {
+            "latest_sequence": CHAT_METRICS_SEQUENCE,
+            "records": [item for item in CHAT_METRICS if item["sequence"] > after],
+        }
+
+
 LLM_MODEL_ID = os.getenv("RK_LLM_MODEL", "qwen3.5-9b-110k")
 QUERY_MODEL_ID = os.getenv("RK_QUERY_MODEL", LLM_MODEL_ID)
 QUERY_MAX_TOKENS = int(os.getenv("RK_QUERY_MAX_TOKENS", "128"))
@@ -720,6 +801,11 @@ def intent_output_suffix(query: str) -> str:
             "\n每个点名对象只写一个单行列表项；仅从其标题区间取事实；"
             "写完所有对象立即结束，不得换一种说法重复。"
         )
+    if any(term in folded for term in ("支持哪些", "有哪些", "哪些模式")):
+        return (
+            "\n直接列出上下文明确给出的项目，每项只写名称和一句必要说明；"
+            "列完立即结束，不补充其他类别。"
+        )
     # “性能如何” asks for a factual result, not instructions.  Return no
     # extra contract and let LightRAG's grounded answer prompt consume the
     # retrieved table.  This guard must precede the generic “如何” rule.
@@ -729,6 +815,13 @@ def intent_output_suffix(query: str) -> str:
         return "\n只输出命令代码块和一句预期结果或说明。"
     if "哪里" in folded and any(term in folded for term in ("怎么", "如何")):
         return "\n第一句回答位置，再输出最多两个不重复的定位步骤，不得自行列引用。"
+    if any(term in folded for term in ("配置流程", "怎么配置", "如何配置")):
+        return (
+            "\n只输出上下文能够直接证明的三至五个必要操作步骤，每步一句，写完立即结束；"
+            "只覆盖上下文明确给出的入口、创建或编辑动作及必要参数；"
+            "删除操作不算配置步骤，参数选项只能写成设置内容，不得编造成按钮或重复执行创建动作；"
+            "不得补写上下文未出现的保存、验证或退出操作，不展开全部可选参数，不得自行列引用。"
+        )
     if any(term in folded for term in ("怎么", "如何")):
         return "\n只输出一至三个不重复的操作步骤，不得自行列引用。"
     return ""
@@ -877,7 +970,18 @@ class Handler(BaseHTTPRequestHandler):
         return value
 
     def do_GET(self) -> None:
-        if self.path == "/health":
+        parsed = urlsplit(self.path)
+        if parsed.path == "/admin/chat-metrics":
+            values = parse_qs(parsed.query)
+            try:
+                after = int(values.get("after", ["0"])[0])
+                if after < 0:
+                    raise ValueError
+            except ValueError:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "after must be nonnegative"})
+                return
+            self.send_json(HTTPStatus.OK, chat_metrics_after(after))
+        elif self.path == "/health":
             self.send_json(HTTPStatus.OK, GATEWAY.health())
         elif self.path == "/v1/models":
             data = []
@@ -893,6 +997,7 @@ class Handler(BaseHTTPRequestHandler):
             request = self.read_json()
             if self.path == "/v1/chat/completions":
                 if not GATEWAY.llm: raise RuntimeError("LLM worker is disabled")
+                chat_started = time.monotonic()
                 configured_max_tokens = int(os.environ.get("RK_LLM_DEFAULT_MAX_TOKENS", "512"))
                 requested_max_tokens = int(request.get(
                     "max_completion_tokens",
@@ -930,6 +1035,10 @@ class Handler(BaseHTTPRequestHandler):
                         "usage": usage,
                         "rk_metrics": {"fast_path": "metric_keywords"},
                     })
+                    record_chat_metrics(model, {"input_tokens": 0, "output_tokens": 0,
+                                                "total_tokens": 0}, stream=False,
+                                        elapsed_ms=(time.monotonic() - chat_started) * 1000,
+                                        finish_reason="stop", source="local_fast_path")
                     return
                 if is_query_model:
                     # LightRAG's retrieval template is a large user message.
@@ -981,6 +1090,11 @@ class Handler(BaseHTTPRequestHandler):
                         if footer_filter:
                             footer_filter.finish()
                         finish_reason = str(reply.get("finish_reason", "stop"))
+                        record_chat_metrics(
+                            model, reply.get("metrics") or {}, stream=True,
+                            elapsed_ms=(time.monotonic() - chat_started) * 1000,
+                            finish_reason=finish_reason,
+                        )
                         print(
                             f"gateway: chat finished model={model} finish_reason={finish_reason}",
                             file=sys.stderr,
@@ -1003,6 +1117,11 @@ class Handler(BaseHTTPRequestHandler):
                 if is_query_model:
                     reply["text"] = strip_model_reference_footer(reply["text"])
                 metrics = reply.get("metrics", {})
+                record_chat_metrics(
+                    model, metrics, stream=False,
+                    elapsed_ms=(time.monotonic() - chat_started) * 1000,
+                    finish_reason=str(reply.get("finish_reason", "stop")),
+                )
                 print(
                     f"gateway: chat finished model={model} "
                     f"finish_reason={reply.get('finish_reason', 'stop')} "
@@ -1027,8 +1146,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/v1/embeddings":
                 if not GATEWAY.embedding: raise RuntimeError("embedding worker is disabled")
+                vector_started = time.monotonic()
+                inputs = request["input"]
+                input_texts = [inputs] if isinstance(inputs, str) else inputs
                 reply = GATEWAY.request_vector(
-                    GATEWAY.embedding, {"id": str(uuid.uuid4()), "input": request["input"]}
+                    GATEWAY.embedding, {"id": str(uuid.uuid4()), "input": inputs}
                 )
                 # Rockchip's Qwen3 embedding exporter exposes the final hidden
                 # state directly. Qwen's retrieval recipe L2-normalizes it
@@ -1037,24 +1159,69 @@ class Handler(BaseHTTPRequestHandler):
                 for vector in reply["data"]:
                     norm = math.sqrt(sum(value * value for value in vector))
                     vectors.append([value / norm for value in vector] if norm else vector)
+                vector_elapsed_ms = (time.monotonic() - vector_started) * 1000
+                input_tokens = reply.get("n_prefill_tokens")
+                tokens_per_input = reply.get("prefill_tokens_per_input")
+                record_vector_metrics(
+                    "embedding", elapsed_ms=vector_elapsed_ms,
+                    input_items=len(input_texts),
+                    input_chars=sum(len(value) for value in input_texts),
+                    vector_dimensions=len(vectors[0]) if vectors else None,
+                    input_tokens=input_tokens,
+                    tokens_per_item=tokens_per_input,
+                )
                 self.send_json(HTTPStatus.OK, {
                     "object": "list", "model": request.get("model", "qwen3-embedding-0.6b"),
                     "data": [{"object": "embedding", "index": i, "embedding": vector}
                              for i, vector in enumerate(vectors)],
+                    "usage": {
+                        "prompt_tokens": input_tokens,
+                        "total_tokens": input_tokens,
+                    },
+                    "rk_metrics": {
+                        "n_prefill_tokens": input_tokens,
+                        "prefill_tokens_per_input": tokens_per_input,
+                        "effective_input_tps": (
+                            round(input_tokens * 1000 / vector_elapsed_ms, 2)
+                            if input_tokens is not None and vector_elapsed_ms > 0 else None
+                        ),
+                    },
                 })
                 return
             if self.path == "/v1/rerank":
                 if not GATEWAY.reranker: raise RuntimeError("reranker worker is disabled")
+                rerank_started = time.monotonic()
                 documents = request["documents"]
                 worker_request = {"id": str(uuid.uuid4()), "query": request["query"], "documents": documents}
                 if request.get("instruction"):
                     worker_request["instruction"] = request["instruction"]
                 reply = GATEWAY.request_reranker(worker_request)
                 pairs = sorted(enumerate(reply["scores"]), key=lambda item: item[1], reverse=True)
-                self.send_json(HTTPStatus.OK, {"results": [
-                    {"index": index, "relevance_score": score, "document": documents[index]}
-                    for index, score in pairs
-                ]})
+                vector_elapsed_ms = (time.monotonic() - rerank_started) * 1000
+                input_tokens = reply.get("n_prefill_tokens")
+                tokens_per_candidate = reply.get("prefill_tokens_per_candidate")
+                record_vector_metrics(
+                    "rerank", elapsed_ms=vector_elapsed_ms,
+                    candidate_count=len(documents),
+                    query_chars=len(request["query"]),
+                    input_chars=sum(len(value) for value in documents),
+                    input_tokens=input_tokens,
+                    tokens_per_item=tokens_per_candidate,
+                )
+                self.send_json(HTTPStatus.OK, {
+                    "results": [
+                        {"index": index, "relevance_score": score, "document": documents[index]}
+                        for index, score in pairs
+                    ],
+                    "rk_metrics": {
+                        "n_prefill_tokens": input_tokens,
+                        "prefill_tokens_per_candidate": tokens_per_candidate,
+                        "effective_input_tps": (
+                            round(input_tokens * 1000 / vector_elapsed_ms, 2)
+                            if input_tokens is not None and vector_elapsed_ms > 0 else None
+                        ),
+                    },
+                })
                 return
             if self.path == "/admin/ingest/begin":
                 self.send_json(HTTPStatus.OK, GATEWAY.enter_ingest_mode())

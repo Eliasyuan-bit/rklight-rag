@@ -40,6 +40,7 @@ class TableParentTest(unittest.TestCase):
         self.assertIn("- TTFT (ms) = 109.78", result["content"])
         self.assertIn("- Decode TPS = 88.47", result["content"])
         self.assertTrue(result["table_evidence_valid"])
+        self.assertEqual(result["table_title"], "LLM Model Performance")
         self.assertEqual(result["table_row_records"][0]["fields"]["TTFT (ms)"], "109.78")
 
     def test_accuracy_table_renders_labelled_fields_for_matching_model(self):
@@ -111,6 +112,23 @@ class TableParentTest(unittest.TestCase):
         self.assertEqual(tables[0]["table_id"], "c-table-00")
         self.assertEqual(tables[0]["table_type"], "llm_performance")
 
+    def test_generic_structured_table_preserves_parser_header_and_row_identity(self):
+        module = load_module()
+        table = module.table_from_structured_sidecar(
+            table_id="any-table", title="Errors > Current limits",
+            headers=["Component", "Reset current (mA, ±20%)"],
+            rows=[["Alpha-12", "86"], ["Beta-34", "79"]], source_chunk_id="c",
+        )
+        rendered = module.TableParent(**table).render()
+        result = module.expand_table_parent(
+            "Alpha-12 和 Beta-34 的复位电流是多少？",
+            {"chunk_id": "c", "content": rendered},
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["table_headers"], ["Component", "Reset current (mA, ±20%)"])
+        self.assertEqual(len(result["table_row_records"]), 2)
+        self.assertTrue(result["table_evidence_valid"])
+
     def test_build_index_persists_parent_and_children(self):
         module = load_module()
         builder_spec = importlib.util.spec_from_file_location(
@@ -135,6 +153,32 @@ class TableParentTest(unittest.TestCase):
             self.assertEqual(result["tables"][0]["table_type"], "llm_performance")
             self.assertEqual(result["children"][0]["model_key"], "qwen34b")
             self.assertEqual(result["children"][0]["fields"]["TTFT (ms)"], "109.78")
+
+    def test_build_index_reads_parser_sidecar_without_table_type_rules(self):
+        module = load_module()
+        builder_spec = importlib.util.spec_from_file_location(
+            "build_table_parent_index_sidecar_test", MODULE_PATH.parent / "build_table_parent_index.py"
+        )
+        builder = importlib.util.module_from_spec(builder_spec)
+        sys.modules[builder_spec.name] = builder
+        sys.path.insert(0, str(MODULE_PATH.parent))
+        assert builder_spec.loader
+        builder_spec.loader.exec_module(builder)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chunks = root / "chunks.json"
+            parsed = root / "parsed"
+            parsed.mkdir()
+            chunks.write_text(json.dumps({"c": {"content": '<table id="t-1" format="json">[]</table>'}}), encoding="utf-8")
+            (parsed / "manual.tables.json").write_text(json.dumps({"t-1": {
+                "heading": "Limits", "parent_headings": ["Errors"],
+                "table_header": '[["Part", "Value (mA)"]]',
+                "content": '[["Alpha-12", "86"]]',
+            }}), encoding="utf-8")
+            result = builder.build(chunks, parsed)
+        sidecar = next(item for item in result["tables"] if item["table_id"] == "t-1")
+        self.assertEqual(sidecar["headers"], ["Part", "Value (mA)"])
+        self.assertEqual(sidecar["source_chunk_id"], "c")
 
     def test_body_values_do_not_turn_an_llm_table_into_server_config(self):
         module = load_module()
@@ -173,6 +217,59 @@ class TableParentTest(unittest.TestCase):
         module = load_module()
         chunks = [{"chunk_id": "a"}, {"chunk_id": "b", "table_parent": True}]
         self.assertEqual(module.prioritize_typed_table_parents(chunks, "介绍一下部署"), chunks)
+
+    def test_generic_table_is_reserved_by_explicit_row_identifiers(self):
+        module = load_module()
+        chunks = [
+            {"chunk_id": "prose", "content": "unrelated"},
+            {
+                "chunk_id": "any-table", "table_parent": True, "table_type": "generic",
+                "row_records": [
+                    {"model_key": "alpha12"}, {"model_key": "beta34"},
+                ],
+            },
+        ]
+        result = module.prioritize_typed_table_parents(
+            chunks, "Alpha-12 和 Beta-34 的数值是多少？"
+        )
+        self.assertEqual([item["chunk_id"] for item in result], ["any-table"])
+
+    def test_generic_table_reserves_cli_flags_frequencies_and_error_codes(self):
+        module = load_module()
+        cases = (
+            ("burn_stress 的 -np 参数默认值是什么？", "-np N"),
+            ("RK1820 在 850MHz 下的均值是多少？", "850MHz"),
+            ("USB 错误的测试方法是什么？", "USB"),
+        )
+        for query, row_key in cases:
+            with self.subTest(query=query):
+                table = {
+                    "chunk_id": "any-table", "table_parent": True,
+                    "table_type": "generic", "row_records": [
+                        {"model_key": module._canonical_model(row_key), "raw": row_key,
+                         "fields": {"key": row_key}, "validated": True},
+                    ],
+                }
+                result = module.prioritize_typed_table_parents(
+                    [{"chunk_id": "prose"}, table], query
+                )
+                self.assertEqual([item["chunk_id"] for item in result], ["any-table"])
+
+    def test_generic_table_rebuilds_rows_after_metadata_projection(self):
+        module = load_module()
+        table = {
+            "chunk_id": "sidecar-table", "table_parent": True,
+            "table_type": "generic",
+            "content": (
+                "Usage\n| Parameter | Default |\n| --- | --- |\n"
+                "| -np N | 30 |\n| -nd N | 240 |"
+            ),
+        }
+        result = module.prioritize_typed_table_parents(
+            [{"chunk_id": "prose"}, table], "-np 和 -nd 的默认值是什么？"
+        )
+        self.assertEqual([item["chunk_id"] for item in result], ["sidecar-table"])
+        self.assertEqual(len(result[0]["row_records"]), 2)
 
     def test_table_id_recovers_type_when_merge_drops_metadata(self):
         module = load_module()

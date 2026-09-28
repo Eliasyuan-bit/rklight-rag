@@ -59,6 +59,33 @@ class EvidenceSplitterTest(unittest.TestCase):
 
 
 class EvidenceRefinerTest(unittest.IsolatedAsyncioTestCase):
+    async def test_preserves_bounded_protected_document_fact_passage(self):
+        module = load_module()
+        content = (
+            "## Add Call Queue\n"
+            "Open Web GUI > Basic Call Features > Call Queue and click Add.\n"
+            "<table><tr><td>Extension</td><td>Configure the extension.</td></tr>"
+            "<tr><td>Name</td><td>Configure the name.</td></tr></table>"
+        )
+        chunks = [{
+            "chunk_id": "call-queue",
+            "content": content,
+            "exact_retrieval_protected": True,
+            "retrieval_profile": "document_fact",
+        }]
+        with patch.dict(
+            os.environ,
+            {
+                "RK_EVIDENCE_REFINER_ENABLED": "1",
+                "RK_EVIDENCE_MIN_TOTAL_CHARS": "0",
+            },
+        ), patch.object(module, "_request_rerank") as rerank:
+            result = await module.refine_evidence_units(
+                chunks, "呼叫队列配置流程是什么？"
+            )
+        self.assertEqual(result[0]["content"], content)
+        rerank.assert_not_called()
+
     async def test_reranks_units_removes_noise_and_restores_source_order(self):
         module = load_module()
         chunks = [

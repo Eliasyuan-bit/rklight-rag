@@ -40,11 +40,11 @@ def render_reference_markdown(references: list[dict[str, Any]]) -> str:
     for group in groups.values():
         first = group[0]
         label = f"[{first['reference_id']}] {display_source_name(str(first['file_path']))}"
-        section = str(first.get("section") or "").strip()
+        location = str(first.get("evidence_location") or first.get("section") or "").strip()
         if len(group) > 1:
             label += f" · {len(group)} 处命中"
-        elif section:
-            label += f" — {section}"
+        elif location:
+            label += f" — {location}"
         chunk_id = str(first.get("chunk_id") or "").strip()
         if chunk_id:
             other_hits = list(dict.fromkeys(

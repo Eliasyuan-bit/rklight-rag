@@ -55,9 +55,12 @@ def extraction_needs_next_page(result: str, *, truncated: bool) -> bool:
     """Return whether extraction must continue on a fresh, stateless page."""
     if truncated:
         return True
-    if MORE_DELIMITER in result:
-        return True
-    return COMPLETE_DELIMITER not in result
+    # A small local model may omit the terminal marker even after producing a
+    # normal, complete response. Treating every missing marker as MORE causes
+    # repeated audit calls and can exhaust the page budget. Continuation is
+    # therefore opt-in: the model must explicitly emit MORE, or the gateway
+    # must report a token-limit truncation.
+    return MORE_DELIMITER in result
 
 
 def _bounded_join(values: list[str], max_chars: int) -> str:
@@ -116,6 +119,8 @@ Continue extracting entities and relationships from the same input text.
 - Output at most {max_total_records} total rows and at most {max_entity_records} entity rows.
 - Keep entity descriptions to one compact factual phrase of at most 16 words.
 - Keep relation descriptions to one compact factual phrase of at most 20 words.
+- Each entity row must contain exactly 4 fields; each relation row exactly 5 fields.
+- Never put commas or tuple delimiters inside a field; use short phrases only.
 - A relation may reference an entity listed under `---Already Extracted---`.
 - If relevant unreported records remain, finish with the literal marker {MORE_DELIMITER}.
 - Only when the input has been fully exhausted, finish with the literal marker {COMPLETE_DELIMITER}.

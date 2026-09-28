@@ -69,6 +69,16 @@ class ReferenceMarkdownTest(unittest.TestCase):
         self.assertNotIn(".kg.md", footer)
         self.assertNotIn(".text.md", footer)
 
+    def test_prefers_precise_table_row_location(self):
+        module = load_module()
+        footer = module.render_reference_markdown([{
+            "reference_id": "1", "file_path": "release.pdf", "chunk_id": "table-1",
+            "section": "Model Performance",
+            "evidence_location": "表格：LLM Model Performance；行：Qwen3-4B",
+        }])
+        self.assertIn("表格：LLM Model Performance；行：Qwen3-4B", footer)
+        self.assertNotIn(" — Model Performance", footer)
+
 
 if __name__ == "__main__":
     unittest.main()

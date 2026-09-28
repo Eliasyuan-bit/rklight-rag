@@ -59,6 +59,24 @@ class QueryDefaultHookTest(unittest.TestCase):
         self.assertNotIn(module.OLD_MARKERS[0], installed)
         self.assertIn("query_retrieval_profile(self.query)", installed)
 
+    def test_upgrades_v4_with_document_fact_graph_suppression(self):
+        module = load_module()
+        old_insert = module.MIX_BUDGET_INSERT.replace(
+            'or query_retrieval_profile(self.query)\n'
+            '                in ("exact", "document_fact")',
+            'or query_retrieval_profile(self.query) == "exact"',
+        )
+        source = module.INSERT.replace(module.MARKER, module.OLD_MARKERS[0])
+        source += "\n" + module.USER_PROMPT_INSERT
+        source += "\n" + old_insert
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "query_routes.py"
+            path.write_text(source)
+            module.install(path)
+            installed = path.read_text()
+        self.assertIn(module.MARKER, installed)
+        self.assertIn('in ("exact", "document_fact")', installed)
+
 
 if __name__ == "__main__":
     unittest.main()

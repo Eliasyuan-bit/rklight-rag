@@ -411,6 +411,65 @@ class SourcePolicyTest(unittest.TestCase):
         )
         self.assertEqual([item["chunk_id"] for item in result], ["version"])
 
+    def test_topical_protected_evidence_survives_generic_product_heading(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "generic-product-heading",
+                "content": "## Connect Your UCM630X\nConnect Ethernet and PSTN cables.",
+                "rerank_score": 0.99,
+            },
+            {
+                "chunk_id": "network-settings",
+                "content": (
+                    "## Network Settings\n"
+                    "UCM630X supports Route/Switch/Dual mode functions. "
+                    "Select the network method."
+                ),
+                "rerank_score": 0.20,
+                "exact_retrieval_protected": True,
+            },
+        ]
+        expansions = (
+            '{"网络":["network"],"模式":["mode","method"],'
+            '"支持哪些":["supported","select"]}'
+        )
+        with patch.dict(os.environ, {"RK_LEXICAL_QUERY_EXPANSIONS": expansions}):
+            result = module.apply_source_authority_policy(
+                chunks, "UCM630x 支持哪些网络模式？"
+            )
+        self.assertEqual([item["chunk_id"] for item in result], ["network-settings"])
+        self.assertGreaterEqual(result[0]["exact_evidence_hits"], 2)
+
+    def test_relation_fact_protection_keeps_downstream_hop_evidence(self):
+        module = load_module()
+        result = module.apply_source_authority_policy(
+            [
+                {
+                    "chunk_id": "first-hop",
+                    "content": "## Default Destination\nDefault Destination may be set to Call Queue.",
+                    "rerank_score": 0.99,
+                    "retrieval_profile": "relation_fact",
+                    "exact_retrieval_protected": True,
+                },
+                {
+                    "chunk_id": "second-hop",
+                    "content": (
+                        "## Call Queue Strategy\n"
+                        "Call Queue distributes calls to Agent using Ring All, "
+                        "Linear, Least Recent, Fewest Calls, Random, or Round Robin."
+                    ),
+                    "rerank_score": 0.95,
+                    "retrieval_profile": "relation_fact",
+                },
+            ],
+            "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？",
+        )
+        self.assertEqual(
+            [item["chunk_id"] for item in result],
+            ["first-hop", "second-hop"],
+        )
+
     def test_mermaid_edges_are_not_treated_as_markdown_table_rows(self):
         module = load_module()
         content = "\n".join(

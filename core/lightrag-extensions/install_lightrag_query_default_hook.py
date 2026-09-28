@@ -6,8 +6,9 @@ import argparse
 from pathlib import Path
 
 
-MARKER = "# RK3588_DEFAULT_QUERY_MODE_V4"
+MARKER = "# RK3588_DEFAULT_QUERY_MODE_V5"
 OLD_MARKERS = (
+    "# RK3588_DEFAULT_QUERY_MODE_V4",
     "# RK3588_DEFAULT_QUERY_MODE_V3",
     "# RK3588_DEFAULT_QUERY_MODE_V2",
     "# RK3588_DEFAULT_QUERY_MODE_V1",
@@ -21,7 +22,7 @@ INSERT = '''    mode: Literal["local", "global", "hybrid", "naive", "mix", "bypa
         default=os.getenv("RK_DEFAULT_QUERY_MODE", "mix"),
         description="Query mode",
     )
-    # RK3588_DEFAULT_QUERY_MODE_V4
+    # RK3588_DEFAULT_QUERY_MODE_V5
 '''
 USER_PROMPT_ANCHOR = '''    user_prompt: Optional[str] = Field(
         default=None,
@@ -55,7 +56,8 @@ MIX_BUDGET_INSERT = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic and e
             diagnostic_terms = ("错误", "故障", "失败", "异常", "为什么", "原因")
             if (
                 any(term in self.query.casefold() for term in diagnostic_terms)
-                or query_retrieval_profile(self.query) == "exact"
+                or query_retrieval_profile(self.query)
+                in ("exact", "document_fact")
             ):
                 param.max_entity_tokens = 0
                 param.max_relation_tokens = 0
@@ -63,8 +65,16 @@ MIX_BUDGET_INSERT = MIX_BUDGET_ANCHOR + '''            # Direct diagnostic and e
 
 
 def inject_diagnostic_budget(source: str) -> str:
-    if "query_retrieval_profile(self.query)" in source:
+    if 'in ("exact", "document_fact")' in source:
         return source
+    old_exact_condition = 'or query_retrieval_profile(self.query) == "exact"'
+    if old_exact_condition in source:
+        return source.replace(
+            old_exact_condition,
+            'or query_retrieval_profile(self.query)\n'
+            '                in ("exact", "document_fact")',
+            1,
+        )
     if MIX_BUDGET_V3 in source:
         return source.replace(MIX_BUDGET_V3, MIX_BUDGET_INSERT, 1)
     if "diagnostic_terms =" in source:

@@ -533,6 +533,23 @@ async def refine_evidence_units(
     if any(chunk.get("table_parent") for chunk in chunks):
         return chunks
 
+    # A bounded passage explicitly protected by document-fact retrieval is
+    # already the answer unit. Re-ranking its internal sentences can keep a
+    # parameter table while dropping the preceding Add/path instruction, or
+    # keep two named modes while dropping the third. Preserve the passage as
+    # a whole; the character ceiling prevents this exception from consuming
+    # the generator context.
+    document_fact_limit = max(
+        256, int(os.getenv("RK_DOCUMENT_FACT_PRESERVE_MAX_CHARS", "1800"))
+    )
+    if all(
+        chunk.get("exact_retrieval_protected")
+        and chunk.get("retrieval_profile") == "document_fact"
+        and len(str(chunk.get("content") or "")) <= document_fact_limit
+        for chunk in chunks
+    ):
+        return chunks
+
     min_chars = max(0, int(os.getenv("RK_EVIDENCE_MIN_TOTAL_CHARS", "240")))
     if sum(len(str(chunk.get("content") or "")) for chunk in chunks) < min_chars:
         return chunks

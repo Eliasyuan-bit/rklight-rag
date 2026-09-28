@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 
 
-MARKER = "# RK3588_PAGED_EXTRACTION_V1"
+MARKER = "# RK3588_PAGED_EXTRACTION_V3"
+OLD_MARKERS = ("# RK3588_PAGED_EXTRACTION_V1", "# RK3588_PAGED_EXTRACTION_V2")
 IMPORT_ANCHOR = "from lightrag.prompt import PROMPTS, resolve_entity_extraction_prompt_profile\n"
 IMPORT_INSERT = IMPORT_ANCHOR + '''from lightrag.rk_paged_extraction import (
     build_continue_prompt,
@@ -15,7 +16,7 @@ IMPORT_INSERT = IMPORT_ANCHOR + '''from lightrag.rk_paged_extraction import (
     merge_extraction_page,
     split_extraction_windows,
 )
-# RK3588_PAGED_EXTRACTION_V1
+# RK3588_PAGED_EXTRACTION_V3
 '''
 
 BLOCK_START = '''        history = pack_user_ass_to_openai_messages(
@@ -23,6 +24,7 @@ BLOCK_START = '''        history = pack_user_ass_to_openai_messages(
         )
 '''
 BLOCK_END = "        # Inject multimodal entity + associations for drawing/table/equation\n"
+INSTALLED_BLOCK_START = "        # Parse the first bounded page, then continue with fresh prompts that\n"
 CONTENT_ANCHOR = '''        content = strip_internal_multimodal_markup_for_extraction(chunk_dp["content"])
 '''
 CONTENT_REPLACEMENT = '''        content = strip_internal_multimodal_markup_for_extraction(chunk_dp["content"])
@@ -113,12 +115,16 @@ BLOCK_REPLACEMENT = '''        # Parse the first bounded page, then continue wit
                 completion_delimiter=context_base["completion_delimiter"],
             )
 
+        max_pages_per_window = max(
+            1, get_env_value("MAX_EXTRACTION_PAGES_PER_WINDOW", 2, int)
+        )
         max_extraction_pages = max(
-            len(extraction_windows) * 2,
+            len(extraction_windows) * max_pages_per_window,
             get_env_value("MAX_EXTRACTION_PAGES", 6, int),
         )
         page_no = 1
         window_index = 0
+        window_page_no = 1
         no_progress_pages = 0
         had_unresolved_window = False
         current_result = final_result
@@ -135,13 +141,27 @@ BLOCK_REPLACEMENT = '''        # Parse the first bounded page, then continue wit
             current_window_unfinished = extraction_needs_next_page(
                 current_result, truncated=is_truncated_response(current_result)
             )
-            if not current_window_unfinished:
+            window_limit_reached = window_page_no >= max_pages_per_window
+            if not current_window_unfinished or window_limit_reached:
+                if (
+                    current_window_unfinished
+                    and window_limit_reached
+                    and is_truncated_response(current_result)
+                ):
+                    had_unresolved_window = True
+                    logger.warning(
+                        f"Extraction window {window_index + 1} unresolved for "
+                        f"chunk {chunk_key}: token-limit truncation persisted "
+                        f"after {max_pages_per_window} pages"
+                    )
                 if window_index + 1 >= len(extraction_windows):
                     break
                 window_index += 1
+                window_page_no = 0
                 no_progress_pages = 0
 
             page_no += 1
+            window_page_no += 1
             continue_prompt = build_continue_prompt(
                 input_text=extraction_windows[window_index],
                 heading_context_block=heading_context_block,
@@ -198,6 +218,7 @@ BLOCK_REPLACEMENT = '''        # Parse the first bounded page, then continue wit
                     if window_index + 1 >= len(extraction_windows):
                         break
                     window_index += 1
+                    window_page_no = 0
                     no_progress_pages = 0
                     current_result = "<|MORE|>"
             else:
@@ -205,12 +226,7 @@ BLOCK_REPLACEMENT = '''        # Parse the first bounded page, then continue wit
 
         pagination_unresolved = had_unresolved_window or (
             not use_json_extraction
-            and (
-                extraction_needs_next_page(
-                    current_result, truncated=is_truncated_response(current_result)
-                )
-                or window_index + 1 < len(extraction_windows)
-            )
+            and is_truncated_response(current_result)
         )
         if pagination_unresolved:
             if chunk_had_token_truncation:
@@ -283,11 +299,30 @@ def replace_block(source: str) -> str:
     return source[:start] + BLOCK_REPLACEMENT + source[end:]
 
 
+def upgrade_installed_block(source: str) -> str:
+    start = source.find(INSTALLED_BLOCK_START)
+    end = source.find(BLOCK_END, start)
+    if start < 0 or end < 0 or source.find(INSTALLED_BLOCK_START, start + 1) >= 0:
+        raise SystemExit("unsupported installed LightRAG pagination block")
+    upgraded = source[:start] + BLOCK_REPLACEMENT + source[end:]
+    for old_marker in OLD_MARKERS:
+        if old_marker in upgraded:
+            upgraded = upgraded.replace(old_marker, MARKER, 1)
+            break
+    return upgraded
+
+
 def install(operate_path: Path, prompt_path: Path) -> None:
     operate_source = operate_path.read_text(encoding="utf-8")
     prompt_source = prompt_path.read_text(encoding="utf-8")
     if MARKER in operate_source:
         print(f"already installed: {operate_path}")
+        return
+    if any(old_marker in operate_source for old_marker in OLD_MARKERS):
+        operate_path.write_text(
+            upgrade_installed_block(operate_source), encoding="utf-8"
+        )
+        print(f"upgraded: {operate_path}")
         return
 
     operate_backup = operate_path.with_suffix(

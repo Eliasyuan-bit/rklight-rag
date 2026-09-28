@@ -16,6 +16,8 @@ _VLM_FIELDS = ("vision", "visual", "image", "fullmodal", "audio")
 _ACCURACY_FIELDS = ("accuracy", "float32", "w4a16", "dataset")
 _CONFIG_FIELDS = ("recommendedserver", "serverconfig", "estimatedconversion", "ssd")
 _MODEL_RE = re.compile(r"\b(?:qwen|gemma|lfm|glm)[a-z0-9._-]*\b", re.I)
+_NAMED_IDENTIFIER_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9._-]*\d[A-Za-z0-9._-]*\b")
+_CLI_FLAG_RE = re.compile(r"(?<![\w-])--?[A-Za-z][A-Za-z0-9-]*\b")
 _PIPE_RE = re.compile(r"^\s*\|.*\|\s*$")
 _SERVER_CONFIG_RE = re.compile(
     r"^(?P<model>.+?)\s+(?P<cpu>\d+-core\s+CPU)\s*/\s*"
@@ -89,7 +91,12 @@ class TableParent:
                     parts.append(row.strip())
             return "\n".join(parts).strip()
         if self.headers:
-            parts.append(" | ".join(self.headers))
+            # Use ordinary Markdown table syntax for every generic table so
+            # it can be parsed again after LightRAG projects/reloads chunks.
+            parts.extend((
+                "| " + " | ".join(self.headers) + " |",
+                "| " + " | ".join("---" for _ in self.headers) + " |",
+            ))
         parts.extend(row.strip() for row in self.rows if row.strip())
         return "\n".join(parts).strip()
 
@@ -114,6 +121,38 @@ def _canonical_model(value: str) -> str:
 
 def _model_keys(text: str) -> list[str]:
     return [_canonical_model(match.group(0)) for match in _MODEL_RE.finditer(text)]
+
+
+def _row_keys(text: str) -> list[str]:
+    """Return explicit, non-domain-specific row identifiers from a query."""
+    return [_canonical_model(match.group(0)) for match in _NAMED_IDENTIFIER_RE.finditer(text)]
+
+
+def _records_named_in_query(query: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Find table rows whose first-column identity occurs literally in *query*.
+
+    A parser sidecar makes the first column the only stable, schema-independent
+    row identity.  It can be a model name, a command flag (``-np``), a frequency
+    (``850MHz``), an error code (``USB``), or any other literal.  Matching the
+    normalized value against the normalized question avoids maintaining a
+    growing list of domain-specific identifier regexes.
+    """
+    normalized_query = _canonical_model(query)
+    matches: list[dict[str, Any]] = []
+    for record in records:
+        key = str(record.get("model_key") or "")
+        first_cell = str((record.get("cells") or [""])[0] or record.get("raw") or "")
+        # A command table often writes a flag together with its argument
+        # placeholder (for example ``-np N``).  The flag itself is the row
+        # identity a user can reasonably name.
+        candidates = [key]
+        candidates.extend(_canonical_model(flag) for flag in _CLI_FLAG_RE.findall(first_cell))
+        # One-character/numeric-only first cells are normally ordinal labels,
+        # not a safe identity for reserving an entire table.
+        if any(len(candidate) >= 2 and not candidate.isdigit() and candidate in normalized_query
+               for candidate in candidates):
+            matches.append(record)
+    return matches
 
 
 def _split_row(raw: str) -> list[str]:
@@ -199,7 +238,10 @@ def _row_records(headers: list[str], rows: list[str], table_type: str) -> list[d
             "cells": cells,
             "fields": values,
             "model_key": _canonical_model(cells[0]) if cells else "",
-            "validated": bool(values) and bool(_model_keys(cells[0] if cells else "")),
+            # A generic table may identify its rows by a chip, command, SKU,
+            # date, or any other literal.  Schema alignment—not a model-name
+            # convention—is the condition for a structurally valid row.
+            "validated": bool(values),
         })
     return records
 
@@ -208,7 +250,10 @@ def _select_rows(query: str, table: dict[str, Any]) -> tuple[list[str], list[dic
     records = table.get("row_records") or _row_records(
         list(table.get("headers") or []), list(table.get("rows") or []), str(table.get("table_type") or "")
     )
-    keys = _model_keys(query)
+    direct_matches = _records_named_in_query(query, records)
+    if direct_matches:
+        return [record["raw"] for record in direct_matches], direct_matches
+    keys = _row_keys(query)
     if not keys:
         return list(table.get("rows") or []), records
     selected = [record for record in records if any(
@@ -343,6 +388,35 @@ def extract_table_parents(
     return parents
 
 
+def table_from_structured_sidecar(
+    *, table_id: str, title: str, headers: list[str], rows: list[list[Any]],
+    source_chunk_id: str = "", source_file: str = "",
+) -> dict[str, Any]:
+    """Build one parent from parser sidecar data without guessing table type.
+
+    PDF/office parsers commonly preserve a table's header in a sidecar even
+    when their linear Markdown output loses or reorders it.  This conversion
+    accepts any rectangular table and keeps the parser-supplied schema.
+    """
+    normalized_headers = [str(value).strip() for value in headers]
+    rendered_rows = [
+        "| " + " | ".join(str(value).strip() for value in row) + " |"
+        for row in rows
+        if isinstance(row, list) and len(row) == len(normalized_headers)
+    ]
+    table = TableParent(
+        table_id=table_id,
+        title=title,
+        headers=normalized_headers,
+        rows=rendered_rows,
+        table_type="generic",
+        source_chunk_id=source_chunk_id,
+        source_file=source_file,
+    )
+    table.row_records = _row_records(table.headers, table.rows, table.table_type)
+    return table.as_record()
+
+
 def table_query_type(query: str) -> str | None:
     folded = query.casefold()
     if any(term in folded for term in ("服务器", "server", "转换时间", "conversion time", "内存", "ssd")):
@@ -369,8 +443,7 @@ def prioritize_typed_table_parents(
     metadata is still present.
     """
     expected = table_query_type(query)
-    if expected is None:
-        return chunks
+    query_keys = set(_row_keys(query))
     matched: list[dict[str, Any]] = []
     for item in chunks:
         table_type = str(item.get("table_type") or "")
@@ -385,34 +458,69 @@ def prioritize_typed_table_parents(
             if extracted:
                 table_type = str(extracted[0].get("table_type") or "")
                 is_parent = True
-        if is_parent and table_type == expected:
+        row_records = item.get("row_records") or []
+        # LightRAG's merge path can retain the rendered parent but discard
+        # auxiliary row metadata.  Parent rendering is deliberately valid
+        # Markdown, so reconstruct the structural records from that durable
+        # representation before applying any generic row-key rule.
+        if is_parent and not row_records:
+            extracted = extract_table_parents(
+                str(item.get("full_content") or item.get("content") or "")
+            )
+            if extracted:
+                row_records = extracted[0].get("row_records", [])
+                if not table_type:
+                    table_type = str(extracted[0].get("table_type") or "")
+        row_keys = {
+            str(record.get("model_key") or "")
+            for record in row_records if isinstance(record, dict)
+        }
+        type_matches = expected is not None and table_type == expected
+        # Generic tables do not have a predefined type.  Reserve one only
+        # when its explicit row identifiers cover every explicit identifier
+        # in the question; this is structural matching, not a domain rule.
+        literal_rows = _records_named_in_query(query, row_records)
+        identifiers_match = (
+            expected is None
+            and (
+                (bool(query_keys) and query_keys.issubset(row_keys))
+                or bool(literal_rows)
+            )
+        )
+        if is_parent and (type_matches or identifiers_match):
             restored = item.copy()
             restored["table_parent"] = True
             restored["table_type"] = table_type
             # Keep row-level fields available to downstream validation even
             # when LightRAG dropped the sidecar metadata during merge.
             if not restored.get("row_records"):
-                extracted = extract_table_parents(
-                    str(restored.get("full_content") or restored.get("content") or "")
-                )
-                if extracted:
-                    restored["row_records"] = extracted[0].get("row_records", [])
+                restored["row_records"] = row_records
             matched.append(restored)
     return matched or chunks
 
 
 def expand_table_parent(query: str, chunk: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a typed parent bundle when the chunk contains a matching table."""
+    """Return a schema-preserving parent bundle for a matching table."""
     expected = table_query_type(query)
-    if expected is None:
-        return None
     content = str(chunk.get("full_content") or chunk.get("content") or "")
     tables = extract_table_parents(
         content,
         chunk_id=str(chunk.get("chunk_id") or chunk.get("id") or ""),
         source_file=str(chunk.get("file_path") or ""),
     )
-    matching = [table for table in tables if table["table_type"] == expected]
+    matching = [table for table in tables if not expected or table["table_type"] == expected]
+    if expected is None:
+        query_keys = set(_row_keys(query))
+        matching = [
+            table for table in tables
+            if _records_named_in_query(query, table.get("row_records", []))
+            or (
+                bool(query_keys)
+                and query_keys.intersection(
+                    str(record.get("model_key") or "") for record in table.get("row_records", [])
+                )
+            )
+        ]
     if not matching:
         return None
     # The parent remains atomic; downstream evidence compaction must not split
@@ -437,6 +545,7 @@ def expand_table_parent(query: str, chunk: dict[str, Any]) -> dict[str, Any] | N
         result["content"] = TableParent(**rendered).render()
     result["table_parent"] = True
     result["table_id"] = selected["table_id"]
+    result["table_title"] = selected["title"]
     result["table_type"] = selected["table_type"]
     result["table_headers"] = selected["headers"]
     result["table_rows"] = selected_rows

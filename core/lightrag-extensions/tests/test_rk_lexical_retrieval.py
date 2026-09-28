@@ -22,6 +22,141 @@ def load_module():
 
 class LexicalRetrievalTest(unittest.TestCase):
 
+    def test_bounds_graph_chunks_only_for_mix(self):
+        module = load_module()
+        entities = [{"chunk_id": f"e-{index}"} for index in range(10)]
+        relations = [{"chunk_id": f"r-{index}"} for index in range(9)]
+        with patch.dict(
+            "os.environ",
+            {"RK_MIX_ENTITY_CHUNK_CAP": "6", "RK_MIX_RELATION_CHUNK_CAP": "6"},
+        ):
+            bounded_entities, bounded_relations = module.bound_mix_graph_chunks(
+                entities, relations, types.SimpleNamespace(mode="mix")
+            )
+            local_entities, local_relations = module.bound_mix_graph_chunks(
+                entities, relations, types.SimpleNamespace(mode="local")
+            )
+        self.assertEqual(len(bounded_entities), 6)
+        self.assertEqual(len(bounded_relations), 6)
+        self.assertIs(local_entities, entities)
+        self.assertIs(local_relations, relations)
+
+    def test_document_fact_queries_use_wider_text_recall_profile(self):
+        module = load_module()
+        self.assertEqual(
+            module.query_retrieval_profile("呼叫队列配置流程是什么？"),
+            "document_fact",
+        )
+        self.assertEqual(
+            module.query_retrieval_profile("UCM630x 支持哪些网络模式？"),
+            "document_fact",
+        )
+        # Enumeration intent takes precedence over the incidental relation
+        # marker "指向" so exact table evidence is not polluted by KG prose.
+        self.assertEqual(
+            module.query_retrieval_profile(
+                "Inbound Route 指向 Call Queue 后，来电按哪些 Strategy 分配？"
+            ),
+            "relation_fact",
+        )
+
+    def test_simple_strategy_enumeration_remains_document_fact(self):
+        module = load_module()
+        self.assertEqual(
+            module.query_retrieval_profile("Call Queue 支持哪些 Strategy？"),
+            "document_fact",
+        )
+        with patch.dict("os.environ", {"RK_EXACT_RETRIEVAL_CANDIDATE_K": "12"}):
+            self.assertEqual(module.retrieval_candidate_k(3, "支持哪些网络模式？"), 12)
+
+    def test_document_fact_query_uses_configured_cross_language_terms(self):
+        module = load_module()
+        expansions = json.dumps(
+            {"网络": ["network"], "模式": ["mode", "method"]},
+            ensure_ascii=False,
+        )
+        with patch.dict("os.environ", {"RK_LEXICAL_QUERY_EXPANSIONS": expansions}):
+            expanded = module._expand_query("支持哪些网络模式？")
+        self.assertIn("network", expanded)
+        self.assertIn("mode", expanded)
+        self.assertIn("method", expanded)
+
+    def test_relation_fact_extracts_assignment_operands(self):
+        module = load_module()
+        expansions = json.dumps(
+            {"默认目的地": ["default destination"]}, ensure_ascii=False
+        )
+        query = "当 Inbound Route 将 Call Queue 设置为默认目的地后，外部来电会如何流转？"
+        with patch.dict("os.environ", {"RK_LEXICAL_QUERY_EXPANSIONS": expansions}):
+            self.assertEqual(
+                module.relation_evidence_anchors(query),
+                ("call queue", "default destination"),
+            )
+            self.assertEqual(module.query_retrieval_profile(query), "relation_fact")
+            self.assertEqual(
+                module.relation_evidence_coverage(
+                    query,
+                    "Default Destination | Extension | Voicemail | Call Queue | IVR",
+                )[:2],
+                (2, 2),
+            )
+
+    def test_relation_fact_injects_direct_evidence_from_broad_bm25_scan(self):
+        module = load_module()
+
+        async def run_inline(function, *args):
+            return function(*args)
+
+        lexical = [
+            {
+                "chunk_id": f"generic-{index}",
+                "content": f"Inbound Route generic routing note {index}",
+                "full_content": f"Inbound Route generic routing note {index}",
+                "lexical_score": 20 - index,
+            }
+            for index in range(7)
+        ]
+        lexical.append(
+            {
+                "chunk_id": "direct-relation",
+                "content": "Default Destination | Call Queue | Ring Group | IVR",
+                "full_content": "Default Destination | Call Queue | Ring Group | IVR",
+                "lexical_score": 1.0,
+            }
+        )
+        module.asyncio.to_thread = run_inline
+        module._bm25 = lambda query, path, top_k: lexical[:top_k]
+        query = "当 Inbound Route 将 Call Queue 设置为默认目的地后，外部来电会如何流转？"
+        expansions = json.dumps(
+            {"默认目的地": ["default destination"]}, ensure_ascii=False
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "kv_store_text_chunks.json").write_text(
+                "{}", encoding="utf-8"
+            )
+            with patch.dict(
+                "os.environ",
+                {
+                    "RK_LEXICAL_QUERY_EXPANSIONS": expansions,
+                    "RK_RETRIEVAL_CANDIDATE_K": "6",
+                    "RK_RELATION_FACT_LEXICAL_SCAN_K": "64",
+                },
+            ):
+                result = asyncio.run(
+                    module.fuse_vector_and_lexical_chunks(
+                        query, [], {"working_dir": directory}, requested_top_k=3
+                    )
+                )
+        self.assertEqual(len(result), 6)
+        protected = next(
+            item for item in result if item["chunk_id"] == "direct-relation"
+        )
+        self.assertTrue(protected["relation_evidence_candidate"])
+        self.assertEqual(
+            protected["relation_evidence_anchors"],
+            ["call queue", "default destination"],
+        )
+
     def test_index_normalizes_any_spaced_technical_identifier(self):
         module = load_module()
         indexed = module._index_text(
@@ -105,6 +240,25 @@ class LexicalRetrievalTest(unittest.TestCase):
         self.assertIn("# USB_TEST", passage)
         self.assertIn("speed=5000", passage)
         self.assertLessEqual(len(passage), 2400)
+
+    def test_html_table_passage_keeps_navigation_and_matching_rows(self):
+        module = load_module()
+        content = (
+            "## Add Call Queue\n"
+            "Open Web GUI > Basic Call Features > Call Queue and click Add.\n"
+            "<table><tr><td>Extension</td><td>Configure the call queue extension.</td></tr>"
+            "<tr><td>Name</td><td>Configure the call queue name.</td></tr>"
+            "<tr><td>Unrelated</td><td>Noise about another feature.</td></tr></table>"
+        )
+        with patch.dict("os.environ", {"RK_LEXICAL_PASSAGE_CHARS": "512"}):
+            passage = module._best_passage(
+                content, "呼叫队列配置流程 call queue configure settings"
+            )
+        self.assertIn("## Add Call Queue", passage)
+        self.assertIn("click Add", passage)
+        self.assertIn("Extension | Configure the call queue extension", passage)
+        self.assertIn("Name | Configure the call queue name", passage)
+        self.assertNotIn("Noise about another feature", passage)
 
     def test_metric_table_passage_removes_prefix_and_keeps_header(self):
         module = load_module()
@@ -395,6 +549,85 @@ Qwen3-0.6B RK182X 128 128 28.61 5.49 182.26
             "Qwen3-4B的性能数据是多少？", chunks, requested_top_k=1
         )
         self.assertEqual(result[0]["chunk_id"], "table")
+        self.assertTrue(result[0]["exact_retrieval_protected"])
+
+    def test_document_fact_protects_best_lexical_passage_after_rerank(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "generic",
+                "content": "UCM630x connects to Ethernet and PSTN interfaces.",
+                "rerank_score": 0.99,
+                "retrieval_rank": 2,
+                "lexical_rank": 2,
+            },
+            {
+                "chunk_id": "network-method",
+                "content": (
+                    "UCM630x Network Settings Method: Select Route, Switch or Dual mode. "
+                    "The default setting is Switch."
+                ),
+                "rerank_score": 0.20,
+                "retrieval_rank": 1,
+                "lexical_rank": 1,
+            },
+        ]
+        result = module.fuse_query_aware_rerank(
+            "UCM630x 支持哪些网络模式？", chunks, requested_top_k=1
+        )
+        self.assertEqual(result[0]["chunk_id"], "network-method")
+        self.assertTrue(result[0]["exact_retrieval_protected"])
+
+    def test_document_fact_protects_fused_rank_over_unrelated_lexical_rank(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "unrelated-lexical",
+                "content": "Configuration settings error table with many generic matches.",
+                "rerank_score": 0.99,
+                "retrieval_rank": 2,
+                "lexical_rank": 1,
+            },
+            {
+                "chunk_id": "call-queue",
+                "content": "Add Call Queue in Basic Call Features and configure its agents.",
+                "rerank_score": 0.20,
+                "retrieval_rank": 1,
+                "lexical_rank": 2,
+            },
+        ]
+        result = module.fuse_query_aware_rerank(
+            "呼叫队列配置流程是什么？", chunks, requested_top_k=1
+        )
+        self.assertEqual(result[0]["chunk_id"], "call-queue")
+        self.assertTrue(result[0]["exact_retrieval_protected"])
+
+    def test_relation_fact_survives_low_rerank_score(self):
+        module = load_module()
+        chunks = [
+            {
+                "chunk_id": "wrong-flow",
+                "content": "Inbound Route can also use Follow Me.",
+                "rerank_score": 0.99,
+                "retrieval_rank": 1,
+                "lexical_rank": 1,
+            },
+            {
+                "chunk_id": "direct-relation",
+                "content": "Default Destination | Call Queue | Ring Group | IVR",
+                "full_content": "Default Destination | Call Queue | Ring Group | IVR",
+                "rerank_score": 0.10,
+                "retrieval_rank": 6,
+                "lexical_rank": 24,
+            },
+        ]
+        query = "当 Inbound Route 将 Call Queue 设置为默认目的地后，外部来电会如何流转？"
+        expansions = json.dumps(
+            {"默认目的地": ["default destination"]}, ensure_ascii=False
+        )
+        with patch.dict("os.environ", {"RK_LEXICAL_QUERY_EXPANSIONS": expansions}):
+            result = module.fuse_query_aware_rerank(query, chunks, requested_top_k=1)
+        self.assertEqual(result[0]["chunk_id"], "direct-relation")
         self.assertTrue(result[0]["exact_retrieval_protected"])
 
 

@@ -92,6 +92,10 @@ curl -s http://127.0.0.1:8100/v1/embeddings -H 'content-type: application/json' 
 `/v1/rerank` returns raw model logits in descending order. The scores are for
 ordering candidate context, not calibrated probabilities.
 
+Embedding 响应的标准 `usage.prompt_tokens` 以及两类向量接口的 `rk_metrics`
+来自 RKNN3 原生 `n_prefill_tokens`。`rk_metrics` 同时返回逐输入 token 数和按网关
+内部请求耗时计算的 `effective_input_tps`；管理端 `/admin/chat-metrics` 使用相同口径。
+
 ## LightRAG configuration
 
 Copy [`config/lightrag.env.example`](config/lightrag.env.example) into the

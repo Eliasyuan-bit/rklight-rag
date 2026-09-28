@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 import hashlib
+import html
 import json
 import logging
 import math
@@ -50,6 +51,21 @@ _SEMANTIC_QUERY_INTENTS = (
 _TABLE_QUERY_INTENTS = (
     "性能", "规格", "参数", "吞吐", "精度", "量化", "对比表", "ttft", "tpot", "decode", "tps",
 )
+_DOCUMENT_FACT_QUERY_INTENTS = (
+    "配置流程",
+    "如何配置",
+    "怎么配置",
+    "支持哪些",
+    "有哪些",
+    "哪些模式",
+    "哪些策略",
+    "哪些 strategy",
+    "which modes",
+    "what modes",
+    "which strategies",
+    "what strategies",
+    "how to configure",
+)
 _COMPOSITE_IDENTIFIER_RE = re.compile(
     r"[A-Za-z][A-Za-z0-9]*(?:[._/:+-][A-Za-z0-9]+)+"
 )
@@ -60,6 +76,10 @@ _NAMED_DIGIT_RE = re.compile(r"(?i)\b[A-Za-z][A-Za-z0-9_.+-]*\d[A-Za-z0-9_.+-]*\
 _SPACED_IDENTIFIER_RE = re.compile(
     r"\b[A-Za-z][A-Za-z0-9]*(?:\s*(?:[._/:+-]\s*|\s+)\d+(?:\s*(?:[._/:+-]\s*|\s+)[A-Za-z0-9]+)*)"
 )
+_NAMED_PHRASE_RE = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z][A-Za-z0-9]*)+\b"
+)
+_RELATION_ASSIGNMENT_MARKERS = ("设置为", "设为", "指向", "转给", "流向")
 
 
 def _compact_identifier(value: str) -> str:
@@ -100,6 +120,18 @@ def query_retrieval_profile(query: str) -> str:
     # remains a soft profile: vector retrieval and reranking still run.
     if any(term in folded for term in _TABLE_QUERY_INTENTS):
         return "table"
+    # An explicit assignment/flow relation takes precedence over an
+    # enumeration suffix.  For example, "A points to B; which strategies ..."
+    # is a compound relation question, while "which strategies does B support"
+    # is an ordinary document fact.  Checking the relation first preserves the
+    # graph path for genuine two-hop questions without sending simple lists to
+    # the graph.
+    if relation_evidence_anchors(query):
+        return "relation_fact"
+    # Configuration procedures and simple enumerations are normally answered
+    # by a contiguous source passage.
+    if any(term in folded for term in _DOCUMENT_FACT_QUERY_INTENTS):
+        return "document_fact"
     has_exact_intent = any(term in folded for term in _EXACT_QUERY_INTENTS)
     has_exact_shape = any(
         pattern.search(query)
@@ -118,6 +150,111 @@ def query_retrieval_profile(query: str) -> str:
     if any(term in folded for term in _SEMANTIC_QUERY_INTENTS):
         return "semantic"
     return "balanced"
+
+
+def _named_phrases(value: str) -> list[str]:
+    return [
+        re.sub(r"\s+", " ", match.group(0)).strip().casefold()
+        for match in _NAMED_PHRASE_RE.finditer(value)
+    ]
+
+
+def _query_expansion_terms(query: str) -> list[str]:
+    """Return configured aliases whose trigger is present in *query*."""
+    raw = os.getenv("RK_LEXICAL_QUERY_EXPANSIONS", "").strip()
+    if not raw:
+        return []
+    try:
+        expansions = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Ignoring invalid RK_LEXICAL_QUERY_EXPANSIONS JSON")
+        return []
+    if not isinstance(expansions, dict):
+        return []
+    folded = query.casefold()
+    additions: list[str] = []
+    for trigger, terms in expansions.items():
+        if str(trigger).casefold() not in folded:
+            continue
+        if isinstance(terms, list):
+            additions.extend(str(term) for term in terms)
+        elif terms:
+            additions.append(str(terms))
+    return additions
+
+
+def relation_evidence_anchors(query: str) -> tuple[str, ...]:
+    """Extract the two operands of a direct relationship assertion.
+
+    This is syntax-based rather than domain-specific. For a query such as
+    ``set A to B`` it identifies the closest named phrase on each side.
+    Configured cross-language expansions may supply an English phrase for a
+    Chinese operand so both operands can be matched in an English passage.
+    """
+    for marker in _RELATION_ASSIGNMENT_MARKERS:
+        if marker not in query:
+            continue
+        left, right = query.split(marker, 1)
+        left_phrases = _named_phrases(left)
+        right_phrases = _named_phrases(right)
+        if not left_phrases:
+            left_phrases = [
+                phrase
+                for term in _query_expansion_terms(left)
+                for phrase in _named_phrases(term)
+            ]
+        if not right_phrases:
+            right_phrases = [
+                phrase
+                for term in _query_expansion_terms(right)
+                for phrase in _named_phrases(term)
+            ]
+        if not left_phrases or not right_phrases:
+            continue
+        anchors = (left_phrases[-1], right_phrases[0])
+        if anchors[0] != anchors[1]:
+            return anchors
+    return ()
+
+
+def relation_evidence_coverage(
+    query: str, content: str
+) -> tuple[int, int, tuple[str, ...]]:
+    anchors = relation_evidence_anchors(query)
+    if not anchors:
+        return 0, 0, ()
+    folded = re.sub(r"\s+", " ", content).casefold()
+    matched = tuple(anchor for anchor in anchors if anchor in folded)
+    return len(matched), len(anchors), matched
+
+
+def relation_evidence_span(query: str, content: str) -> int | None:
+    """Return the tightest character span joining both relation operands."""
+    anchors = relation_evidence_anchors(query)
+    if len(anchors) != 2:
+        return None
+    folded = re.sub(r"\s+", " ", content).casefold()
+    positions: list[list[int]] = []
+    for anchor in anchors:
+        found: list[int] = []
+        start = 0
+        while True:
+            index = folded.find(anchor, start)
+            if index < 0:
+                break
+            found.append(index)
+            start = index + 1
+        if not found:
+            return None
+        positions.append(found)
+    return min(abs(left - right) for left in positions[0] for right in positions[1])
+
+
+def _is_direct_relation_evidence(query: str, content: str) -> bool:
+    matched, total, _ = relation_evidence_coverage(query, content)
+    span = relation_evidence_span(query, content)
+    maximum_span = max(1, int(os.getenv("RK_RELATION_FACT_MAX_SPAN_CHARS", "480")))
+    return matched == total and total >= 2 and span is not None and span <= maximum_span
 
 
 def query_direct_identifiers(query: str) -> tuple[str, ...]:
@@ -172,6 +309,18 @@ def query_aware_rrf_weights(query: str) -> tuple[str, float, float]:
             float(os.getenv("RK_RRF_SEMANTIC_VECTOR_WEIGHT", "1.5")),
             float(os.getenv("RK_RRF_SEMANTIC_LEXICAL_WEIGHT", "1.0")),
         )
+    if profile == "document_fact":
+        return (
+            profile,
+            float(os.getenv("RK_RRF_DOCUMENT_FACT_VECTOR_WEIGHT", "1.5")),
+            float(os.getenv("RK_RRF_DOCUMENT_FACT_LEXICAL_WEIGHT", "1.5")),
+        )
+    if profile == "relation_fact":
+        return (
+            profile,
+            float(os.getenv("RK_RRF_RELATION_FACT_VECTOR_WEIGHT", "1.0")),
+            float(os.getenv("RK_RRF_RELATION_FACT_LEXICAL_WEIGHT", "1.75")),
+        )
     return (
         profile,
         float(os.getenv("RK_RRF_VECTOR_WEIGHT", "1.0")),
@@ -183,7 +332,9 @@ def query_aware_rerank_top_n(
     query: str, chunks: list[dict[str, Any]], requested_top_k: int
 ) -> int:
     """Expose enough exact-query candidates for post-rerank fusion."""
-    if query_retrieval_profile(query) not in ("exact", "table"):
+    if query_retrieval_profile(query) not in (
+        "exact", "table", "document_fact", "relation_fact"
+    ):
         return requested_top_k
     maximum = max(requested_top_k, int(os.getenv("RK_EXACT_RERANK_CANDIDATE_K", "12")))
     return min(len(chunks), maximum)
@@ -200,7 +351,10 @@ def fuse_query_aware_rerank(
     queries additionally retain the best substantive BM25 passage so a
     command, version, path, or error code cannot disappear after recall.
     """
-    if query_retrieval_profile(query) not in ("exact", "table") or not reranked_chunks:
+    profile = query_retrieval_profile(query)
+    if profile not in (
+        "exact", "table", "document_fact", "relation_fact"
+    ) or not reranked_chunks:
         return reranked_chunks
 
     rrf_k = float(os.getenv("RK_POST_RERANK_RRF_K", "60"))
@@ -240,18 +394,61 @@ def fuse_query_aware_rerank(
             item["exact_evidence_identifier_count"] = total
             item["exact_evidence_identifiers"] = list(identifiers)
             direct_candidates.append(item)
-    protected = (
-        min(
-            direct_candidates,
-            key=lambda value: (
-                -int(value["exact_evidence_coverage"]),
-                -int(value["exact_evidence_identifier_count"]),
-                int(value.get("lexical_rank") or 10**9),
-                int(value.get("retrieval_rank") or 10**9),
+    if profile == "document_fact":
+        # For procedural/enumeration questions the fused text rank is more
+        # reliable than the highest standalone BM25 rank. Generic words such
+        # as "configuration" can otherwise protect an unrelated document.
+        protected = next(
+            (
+                item
+                for item in sorted(
+                    ordered,
+                    key=lambda value: int(value.get("retrieval_rank") or 10**9),
+                )
+                if _has_substantive_evidence(str(item.get("content") or ""))
             ),
+            None,
         )
-        if direct_candidates
-        else next(
+    elif profile == "relation_fact":
+        relation_candidates = []
+        for item in ordered:
+            evidence_source = str(
+                item.get("full_content") or item.get("content") or ""
+            )
+            matched, total, anchors = relation_evidence_coverage(
+                query, evidence_source
+            )
+            if _is_direct_relation_evidence(
+                query, evidence_source
+            ) and _has_substantive_evidence(evidence_source):
+                item["relation_evidence_coverage"] = matched
+                item["relation_evidence_anchor_count"] = total
+                item["relation_evidence_anchors"] = list(anchors)
+                relation_candidates.append(item)
+        protected = (
+            min(
+                relation_candidates,
+                key=lambda value: (
+                    int(value.get("lexical_rank") or 10**9),
+                    int(value.get("retrieval_rank") or 10**9),
+                ),
+            )
+            if relation_candidates
+            else None
+        )
+    else:
+        protected = (
+            min(
+                direct_candidates,
+                key=lambda value: (
+                    -int(value["exact_evidence_coverage"]),
+                    -int(value["exact_evidence_identifier_count"]),
+                    int(value.get("lexical_rank") or 10**9),
+                    int(value.get("retrieval_rank") or 10**9),
+                ),
+            )
+            if direct_candidates
+            else next(
             (
                 item
                 for item in sorted(
@@ -262,8 +459,8 @@ def fuse_query_aware_rerank(
                 and _has_substantive_evidence(str(item.get("content") or ""))
             ),
             None,
+            )
         )
-    )
     if protected is not None:
         protected_id = str(protected.get("chunk_id") or protected.get("id") or "")
         if all(
@@ -277,7 +474,8 @@ def fuse_query_aware_rerank(
                 break
     selected.sort(key=lambda item: -float(item["query_aware_score"]))
     logger.info(
-        "Query-aware rerank fusion: profile=exact input=%d output=%d protected=%s",
+        "Query-aware rerank fusion: profile=%s input=%d output=%d protected=%s",
+        profile,
         len(reranked_chunks),
         len(selected),
         protected_id if protected is not None else "none",
@@ -336,7 +534,9 @@ def log_chunk_stage(
 
 def retrieval_candidate_k(requested_top_k: int, query: str = "") -> int:
     configured = int(os.getenv("RK_RETRIEVAL_CANDIDATE_K", "6"))
-    if query and query_retrieval_profile(query) in ("exact", "table"):
+    if query and query_retrieval_profile(query) in (
+        "exact", "table", "document_fact"
+    ):
         configured = max(
             configured,
             int(os.getenv("RK_EXACT_RETRIEVAL_CANDIDATE_K", "12")),
@@ -346,26 +546,29 @@ def retrieval_candidate_k(requested_top_k: int, query: str = "") -> int:
 
 def _expand_query(query: str) -> str:
     """Append configured domain identifiers for colloquial trigger terms."""
-    raw = os.getenv("RK_LEXICAL_QUERY_EXPANSIONS", "").strip()
-    if not raw:
-        return query
-    try:
-        expansions = json.loads(raw)
-    except json.JSONDecodeError:
-        logger.warning("Ignoring invalid RK_LEXICAL_QUERY_EXPANSIONS JSON")
-        return query
-    if not isinstance(expansions, dict):
-        return query
-    folded = query.casefold()
-    additions = []
-    for trigger, terms in expansions.items():
-        if str(trigger).casefold() not in folded:
-            continue
-        if isinstance(terms, list):
-            additions.extend(str(term) for term in terms)
-        elif terms:
-            additions.append(str(terms))
+    additions = _query_expansion_terms(query)
     return query + (" " + " ".join(additions) if additions else "")
+
+
+def bound_mix_graph_chunks(
+    entity_chunks: list[dict[str, Any]],
+    relation_chunks: list[dict[str, Any]],
+    query_param: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Bound graph-derived chunk fan-out before mixed-mode neural reranking.
+
+    LightRAG scales the number of related chunks with the number of matched
+    entities and relations.  On a large manual, even a one-hop question can
+    therefore turn six text candidates into dozens of reranker inputs.  Mix
+    still keeps graph evidence, but admits only a small, independently
+    configurable prefix from each graph source.
+    """
+    if getattr(query_param, "mode", None) != "mix":
+        return entity_chunks, relation_chunks
+
+    entity_cap = max(0, int(os.getenv("RK_MIX_ENTITY_CHUNK_CAP", "6")))
+    relation_cap = max(0, int(os.getenv("RK_MIX_RELATION_CHUNK_CAP", "6")))
+    return entity_chunks[:entity_cap], relation_chunks[:relation_cap]
 
 
 def preserve_focused_evidence(
@@ -405,6 +608,8 @@ def preserve_focused_evidence(
             "lexical_rank",
             "retrieval_rank",
             "retrieval_profile",
+            "relation_evidence_candidate",
+            "relation_evidence_anchors",
         ):
             if preferred.get(key) is not None:
                 chunk[key] = preferred[key]
@@ -475,6 +680,9 @@ def _load_index(path: Path):
                 continue
             document = {
                 "chunk_id": table_id,
+                # Keep retrieval IDs unique per table, but retain a real
+                # LightRAG chunk for citation preview and document links.
+                "reference_chunk_id": table.get("source_chunk_id", ""),
                 "source_chunk_id": table.get("source_chunk_id", ""),
                 "content": str(table["parent_content"]),
                 "full_content": str(table["parent_content"]),
@@ -724,6 +932,9 @@ def _multi_section_passage(lines: list[str], query: str, max_chars: int) -> str 
 def _best_passage(content: str, query: str) -> str:
     """Return a bounded, line-aligned window around the strongest lexical hit."""
     max_chars = max(512, int(os.getenv("RK_LEXICAL_PASSAGE_CHARS", "2400")))
+    html_table = _html_table_passage(content, query, max_chars)
+    if html_table:
+        return html_table
     lines = content.splitlines(keepends=True)
     metric_table = _metric_table_passage(lines, query, max_chars)
     if metric_table:
@@ -770,6 +981,50 @@ def _best_passage(content: str, query: str) -> str:
     return passage[:max_chars]
 
 
+def _html_table_passage(content: str, query: str, max_chars: int) -> str | None:
+    """Compact a single-line HTML table without losing its preceding steps."""
+    match = re.search(r"<table\b[^>]*>(.*?)</table>", content, re.I | re.S)
+    if not match:
+        return None
+    prefix = content[: match.start()].strip()
+    prefix_limit = min(max_chars // 3, 480)
+    if len(prefix) > prefix_limit:
+        prefix = prefix[-prefix_limit:]
+    rows: list[tuple[int, int, str]] = []
+    query_tokens = _passage_query_tokens(query)
+    for index, row_match in enumerate(
+        re.finditer(r"<tr\b[^>]*>(.*?)</tr>", match.group(1), re.I | re.S)
+    ):
+        cells = []
+        for cell_match in re.finditer(
+            r"<t[dh]\b[^>]*>(.*?)</t[dh]>", row_match.group(1), re.I | re.S
+        ):
+            value = re.sub(r"<[^>]+>", " ", cell_match.group(1))
+            value = html.unescape(re.sub(r"\s+", " ", value)).strip()
+            if value:
+                cells.append(value)
+        if not cells:
+            continue
+        rendered = " | ".join(cells)
+        rows.append((index, _line_score(rendered, query_tokens), rendered))
+    matching = [row for row in rows if row[1] > 0]
+    if not matching:
+        return None
+    matching.sort(key=lambda row: (-row[1], row[0]))
+    chosen: dict[int, str] = {}
+    used = len(prefix) + len("\n\nTable:\n")
+    for index, _, rendered in matching:
+        if used + len(rendered) + 1 > max_chars:
+            continue
+        chosen[index] = rendered
+        used += len(rendered) + 1
+    if not chosen:
+        return None
+    parts = [prefix] if prefix else []
+    parts.append("Table:\n" + "\n".join(chosen[index] for index in sorted(chosen)))
+    return "\n\n".join(parts)[:max_chars]
+
+
 async def fuse_vector_and_lexical_chunks(
     query: str,
     vector_chunks: list[dict[str, Any]],
@@ -786,7 +1041,15 @@ async def fuse_vector_and_lexical_chunks(
         return vector_chunks
 
     candidate_k = retrieval_candidate_k(requested_top_k, query)
-    lexical_chunks = await asyncio.to_thread(_bm25, query, store_path, candidate_k)
+    profile = query_retrieval_profile(query)
+    lexical_scan_k = candidate_k
+    if profile == "relation_fact":
+        lexical_scan_k = max(
+            candidate_k, int(os.getenv("RK_RELATION_FACT_LEXICAL_SCAN_K", "64"))
+        )
+    lexical_chunks = await asyncio.to_thread(
+        _bm25, query, store_path, lexical_scan_k
+    )
     rrf_k = float(os.getenv("RK_RRF_K", "60"))
     profile, vector_weight, lexical_weight = query_aware_rrf_weights(query)
     fused: dict[str, dict[str, Any]] = {}
@@ -822,6 +1085,24 @@ async def fuse_vector_and_lexical_chunks(
         fused[chunk_id]["lexical_rank"] = rank
         scores[chunk_id] += lexical_weight / (rrf_k + rank)
     ranked_ids = sorted(scores, key=lambda chunk_id: (-scores[chunk_id], chunk_id))[:candidate_k]
+    if profile == "relation_fact":
+        relation_candidates = []
+        for rank, chunk in enumerate(lexical_chunks, 1):
+            evidence_source = str(
+                chunk.get("full_content") or chunk.get("content") or ""
+            )
+            matched, total, anchors = relation_evidence_coverage(
+                query, evidence_source
+            )
+            if _is_direct_relation_evidence(query, evidence_source):
+                relation_candidates.append((rank, chunk, anchors))
+        if relation_candidates:
+            _, relation_chunk, anchors = relation_candidates[0]
+            protected_id = str(relation_chunk["chunk_id"])
+            fused[protected_id]["relation_evidence_candidate"] = True
+            fused[protected_id]["relation_evidence_anchors"] = list(anchors)
+            if protected_id not in ranked_ids:
+                ranked_ids[-1] = protected_id
     result = [
         {
             **fused[chunk_id],

@@ -94,13 +94,22 @@ class RkllmHttpWorkerTest(unittest.TestCase):
         events = [
             {"choices": [{"delta": {"content": "你"}, "finish_reason": None}]},
             {"choices": [{"delta": {"content": "好"}, "finish_reason": None}]},
-            {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop"}],
+             "usage": {"prompt_tokens": 16, "completion_tokens": 2, "total_tokens": 18},
+             "timings": {"prompt_ms": 90.4, "predicted_ms": 11.7,
+                         "predicted_per_second": 85.5}},
         ]
         lines = [
             ("data: " + json.dumps(event, ensure_ascii=False) + "\n").encode()
             for event in events
         ] + [b"data: [DONE]\n"]
-        worker._open = lambda *_args, **_kwargs: FakeResponse(lines=lines)
+        requests = []
+
+        def fake_open(path, payload, *, timeout):
+            requests.append(payload)
+            return FakeResponse(lines=lines)
+
+        worker._open = fake_open
         deltas = []
 
         result = worker.request_stream(
@@ -113,6 +122,10 @@ class RkllmHttpWorkerTest(unittest.TestCase):
 
         self.assertEqual(deltas, ["你", "好"])
         self.assertEqual(result["finish_reason"], "stop")
+        self.assertEqual(requests[0]["stream_options"], {"include_usage": True})
+        self.assertEqual(result["metrics"]["input_tokens"], 16)
+        self.assertEqual(result["metrics"]["output_tokens"], 2)
+        self.assertEqual(result["metrics"]["predicted_per_second"], 85.5)
 
     def test_multiple_system_messages_are_folded_for_qwen_template(self):
         worker = self.make_worker()

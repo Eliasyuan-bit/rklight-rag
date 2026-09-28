@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
@@ -33,6 +34,47 @@ class ChunkCitationsTest(unittest.TestCase):
         ])
         self.assertEqual(references, [])
         self.assertEqual(chunks[0]["reference_id"], "")
+
+    def test_preserves_selected_table_title_and_model_row_as_location(self):
+        module = load_module()
+        references, _ = module.generate_chunk_reference_list([{
+            "chunk_id": "performance-table", "file_path": "release.pdf",
+            "table_parent": True, "table_title": "LLM Model Performance",
+            "table_row_records": [{
+                "raw": "Qwen3-4B RK1828 128 128 109.78 11.30 88.47",
+                "fields": {"Model Name": "Qwen3-4B"},
+            }],
+        }])
+        self.assertEqual(
+            references[0]["evidence_location"],
+            "表格：LLM Model Performance；行：Qwen3-4B",
+        )
+
+    def test_recovers_table_location_from_final_chunk_and_query(self):
+        module = load_module()
+        table_spec = importlib.util.spec_from_file_location(
+            "rk_table_parent", MODULE_PATH.parent / "rk_table_parent.py"
+        )
+        table_module = importlib.util.module_from_spec(table_spec)
+        assert table_spec.loader
+        sys.modules["rk_table_parent"] = table_module
+        table_spec.loader.exec_module(table_module)
+        references = [{"reference_id": "1", "file_path": "release.pdf"}]
+        chunks = [{
+            "reference_id": "1", "chunk_id": "performance-table",
+            "content": (
+                "LLM Model Performance\n"
+                "Model Name Accelerator Input Tokens New Tokens TTFT TPOT Decode TPS\n"
+                "Qwen3-4B RK1828 128 128 109.78 11.30 88.47"
+            ),
+        }]
+        result = module.enrich_reference_locations(
+            references, chunks, "Qwen3-4B 在 RK1828 上的性能数据是多少"
+        )
+        self.assertEqual(
+            result[0]["evidence_location"],
+            "表格：LLM Model Performance；行：Qwen3-4B",
+        )
 
 
 if __name__ == "__main__":

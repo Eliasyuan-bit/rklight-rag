@@ -10,12 +10,15 @@ BOARD_SOURCE="$BOARD_APP_ROOT/third_party/LightRAG"
 BOARD_ASSETS="$BOARD_SOURCE/lightrag/api/webui"
 BUN_ROOT="$ROOT/third_party/bun/linux-x64"
 BUN_BIN="$BUN_ROOT/bun"
+WORK_ROOT="$ROOT/runtime/tmp"
+mkdir -p "$WORK_ROOT"
+export TMPDIR="$WORK_ROOT"
 
 if [[ ! -x "$BUN_BIN" ]]; then
   command -v curl >/dev/null || { error "curl is required to download Bun."; exit 1; }
   command -v unzip >/dev/null || { error "unzip is required to unpack Bun."; exit 1; }
   mkdir -p "$BUN_ROOT"
-  archive="$(mktemp /tmp/rklight-bun.XXXXXX.zip)"
+  archive="$(mktemp "$WORK_ROOT/rklight-bun.XXXXXX.zip")"
   trap 'rm -f "$archive"; rm -rf "${work:-}"' EXIT
   step "Download Bun frontend builder"
   curl --fail --location --retry 3 --output "$archive" \
@@ -28,8 +31,10 @@ if [[ ! -x "$BUN_BIN" ]]; then
 fi
 [[ -x "$BUN_BIN" ]] || { error "Bun download did not produce an executable."; exit 1; }
 
-work="$(mktemp -d /tmp/rklight-webui.XXXXXX)"
+work="$(mktemp -d "$WORK_ROOT/rklight-webui.XXXXXX")"
 trap 'rm -f "${archive:-}"; rm -rf "$work"' EXIT
+step "Apply pinned board WebUI defaults"
+adb -s "$ADB_SERIAL" shell "python3 '$BOARD_APP_ROOT/core/lightrag-extensions/install_lightrag_webui_defaults.py' '$BOARD_SOURCE/lightrag_webui'"
 step "Copy official WebUI source from board"
 adb -s "$ADB_SERIAL" pull "$BOARD_SOURCE/lightrag_webui" "$work/lightrag_webui" >/dev/null
 

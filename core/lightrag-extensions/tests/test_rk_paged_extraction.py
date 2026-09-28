@@ -20,7 +20,7 @@ class PagedExtractionTest(unittest.TestCase):
         self.assertTrue(
             module.extraction_needs_next_page("row\n<|MORE|>", truncated=False)
         )
-        self.assertTrue(module.extraction_needs_next_page("row", truncated=False))
+        self.assertFalse(module.extraction_needs_next_page("row", truncated=False))
         self.assertFalse(
             module.extraction_needs_next_page(
                 "row\n<|COMPLETE|>", truncated=False
@@ -82,8 +82,8 @@ class PagedExtractionTest(unittest.TestCase):
         self.assertEqual("".join(windows), long_text)
         self.assertTrue(all(len(window) <= 80 for window in windows))
 
-    def test_missing_marker_still_requests_one_audit_page(self):
-        self.assertTrue(
+    def test_missing_marker_does_not_trigger_repeat_audit(self):
+        self.assertFalse(
             module.extraction_needs_next_page("one complete record", truncated=False)
         )
 

@@ -28,7 +28,8 @@ def generate_reference_list_from_chunks(
 def render_chunks_context_text(chunks_with_reference_ids: list[dict]) -> str:
 '''
 
-ROUTES_MARKER = "# RK3588_CHUNK_CITATION_FIELDS_V1"
+ROUTES_MARKER = "# RK3588_CHUNK_CITATION_FIELDS_V2"
+OLD_ROUTES_MARKER = "# RK3588_CHUNK_CITATION_FIELDS_V1"
 ROUTES_ANCHOR = '''    file_path: str = Field(description="Path to the source file")
     content: Optional[List[str]] = Field(
 '''
@@ -41,7 +42,11 @@ ROUTES_INSERT = '''    file_path: str = Field(description="Path to the source fi
         default=None,
         description="Markdown section containing the evidence",
     )
-    # RK3588_CHUNK_CITATION_FIELDS_V1
+    evidence_location: Optional[str] = Field(
+        default=None,
+        description="Structured section or table-row location for the evidence",
+    )
+    # RK3588_CHUNK_CITATION_FIELDS_V2
     content: Optional[List[str]] = Field(
 '''
 
@@ -74,6 +79,20 @@ def install_routes(path: Path) -> None:
     source = path.read_text()
     if ROUTES_MARKER in source:
         print(f"already installed: {path}")
+        return
+    if OLD_ROUTES_MARKER in source:
+        source = replace_once(
+            source,
+            f"    {OLD_ROUTES_MARKER}\n",
+            "    evidence_location: Optional[str] = Field(\n"
+            "        default=None,\n"
+            "        description=\"Structured section or table-row location for the evidence\",\n"
+            "    )\n"
+            f"    {ROUTES_MARKER}\n",
+            "v1 citation schema marker",
+        )
+        path.write_text(source)
+        print(f"upgraded: {path}")
         return
     backup = path.with_suffix(path.suffix + ".before-rk3588-chunk-citations")
     if not backup.exists():
