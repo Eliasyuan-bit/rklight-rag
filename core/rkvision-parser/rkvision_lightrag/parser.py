@@ -69,6 +69,8 @@ class RkVisionParser(BaseParser):
         if not document_path.is_file():
             raise ValueError(f"rkvision did not produce document.json for {ctx.file_path}")
 
+        tableformer_summary = await _restore_tables(source, output_dir, document_path)
+
         from lightrag.sidecar import write_sidecar
         from lightrag.utils_pipeline import make_lightrag_doc_content, sidecar_uri_for
 
@@ -99,8 +101,51 @@ class RkVisionParser(BaseParser):
             content=parsed_data["content"],
             blocks_path=parsed_data["blocks_path"],
             parse_engine=self.engine_name,
-            parse_warnings={"rkvision_artifacts": str(output_dir)},
+            parse_warnings={
+                "rkvision_artifacts": str(output_dir),
+                **({"tableformer": tableformer_summary} if tableformer_summary else {}),
+            },
         )
+
+
+async def _restore_tables(source: Path, output_dir: Path, document_path: Path) -> dict:
+    """Optionally enrich RKVision output with TableFormer structure."""
+    executable = os.environ.get("RK_VISION_TABLEFORMER_PDF", "").strip()
+    if not executable:
+        return {}
+    command = [
+        executable,
+        str(source),
+        str(output_dir),
+        "--document-json",
+        str(document_path),
+    ]
+    process_env = os.environ.copy()
+    process_env.setdefault(
+        "TF_DOCUMENT_VISION_ROOT", str(Path(os.environ["RK_VISION_DAEMON"]).parent.parent)
+    )
+    result = await asyncio.to_thread(
+        subprocess.run,
+        command,
+        env=process_env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "TableFormer PDF enrichment failed: "
+            + (result.stderr.strip() or result.stdout.strip())
+        )
+    for line in reversed(result.stdout.splitlines()):
+        try:
+            summary = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(summary, dict):
+            return summary
+    raise RuntimeError("TableFormer PDF enrichment returned no JSON summary")
 
 
 def _clear_previous_sidecar(parsed_dir: Path, document_name: str) -> None:

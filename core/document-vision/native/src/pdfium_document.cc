@@ -42,6 +42,11 @@ std::string Utf16ToUtf8(const unsigned short* input, size_t length) {
         ++index;
       }
     }
+    // Some Rockchip PDFs encode a visual line-wrap hyphen as U+0002.  Keeping
+    // that control byte pollutes Markdown and tokenizer input; its visual and
+    // semantic representation is an ordinary hyphen.
+    if (codepoint == 0x02U || codepoint == 0xfffeU) codepoint = static_cast<uint32_t>('-');
+    if (codepoint < 0x20U && codepoint != '\t' && codepoint != '\n' && codepoint != '\r') continue;
     if (codepoint <= 0x7fU) output.push_back(static_cast<char>(codepoint));
     else if (codepoint <= 0x7ffU) {
       output.push_back(static_cast<char>(0xc0U | (codepoint >> 6U)));

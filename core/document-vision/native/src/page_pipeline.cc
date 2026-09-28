@@ -67,6 +67,7 @@ struct PixelCharacter {
   float right = 0.0F;
   float top = 0.0F;
   float bottom = 0.0F;
+  bool space_before = false;
 };
 
 bool IsVisibleCharacter(const PixelCharacter& character) {
@@ -83,14 +84,38 @@ std::vector<PixelCharacter> ToPixelCharacters(const NativeTextPage& text, double
   const float scale = static_cast<float>(dpi) / 72.0F;
   std::vector<PixelCharacter> result;
   result.reserve(text.characters.size());
+  bool pending_space = false;
   for (const auto& character : text.characters) {
+    if (character.utf8 == " " || character.utf8 == "\t") {
+      pending_space = true;
+      continue;
+    }
+    if (character.utf8 == "\n" || character.utf8 == "\r") {
+      pending_space = false;
+      continue;
+    }
     PixelCharacter pixel;
     pixel.utf8 = character.utf8;
     pixel.left = static_cast<float>(character.left) * scale;
     pixel.right = static_cast<float>(character.right) * scale;
     pixel.top = static_cast<float>(page_height_points - character.top) * scale;
     pixel.bottom = static_cast<float>(page_height_points - character.bottom) * scale;
+    pixel.space_before = pending_space;
+    pending_space = false;
     result.push_back(std::move(pixel));
+  }
+  return result;
+}
+
+std::vector<NativeGlyph> ExportNativeGlyphs(const std::vector<PixelCharacter>& characters) {
+  std::vector<NativeGlyph> result;
+  result.reserve(characters.size());
+  for (const auto& character : characters) {
+    NativeGlyph glyph;
+    glyph.text = character.utf8;
+    glyph.box = {character.left, character.top, character.right, character.bottom};
+    glyph.space_before = character.space_before;
+    result.push_back(std::move(glyph));
   }
   return result;
 }
@@ -135,8 +160,10 @@ std::string ReflowCharacters(std::vector<PixelCharacter> selected) {
     float previous_height = 0.0F;
     for (const auto& character : line) {
       const float height = std::max(1.0F, character.bottom - character.top);
-      if (!output.empty() && std::isfinite(previous_right) &&
-          character.left - previous_right > std::max(height, previous_height) * 0.75F) {
+      const bool geometric_word_break = std::isfinite(previous_right) &&
+          character.left - previous_right > std::max(height, previous_height) * 0.75F;
+      if (!output.empty() && output.back() != '\n' && output.back() != ' ' &&
+          (character.space_before || geometric_word_break)) {
         output += ' ';
       }
       output += character.utf8;
@@ -283,6 +310,7 @@ class PagePipeline::Impl {
       result.dpi = config_.render_dpi;
       result.native_text = native.utf8;
       result.native_character_count = native.character_count;
+      result.native_glyphs = ExportNativeGlyphs(characters);
       result.layout_regions.reserve(regions.size());
       for (const auto& region : regions) {
         PageBlock layout_block;
@@ -329,6 +357,7 @@ class PagePipeline::Impl {
     result.dpi = config_.render_dpi;
     result.native_text = native.utf8;
     result.native_character_count = native.character_count;
+    result.native_glyphs = ExportNativeGlyphs(characters);
     result.layout_regions.reserve(regions.size());
     for (const auto& region : regions) {
       PageBlock layout_block;

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <rect width="900" height="420" fill="white"/>
+  <g fill="none" stroke="#111" stroke-width="3">
+    <rect x="30" y="30" width="840" height="360"/>
+    <path d="M30 110H870 M30 180H870 M30 250H870 M30 320H870"/>
+    <path d="M270 30V390 M570 30V390"/>
+  </g>
+  <g fill="#111" font-family="DejaVu Sans, sans-serif" font-size="28">
+    <text x="75" y="82">Model</text>
+    <text x="350" y="82">TTFT (ms)</text>
+    <text x="660" y="82">TPS</text>
+    <text x="75" y="155">Qwen2.5-7B</text><text x="390" y="155">162.25</text><text x="690" y="155">70.47</text>
+    <text x="75" y="225">Qwen3-4B</text><text x="390" y="225">88.47</text><text x="690" y="225">91.30</text>
+    <text x="75" y="295">Qwen3.5-2B</text><text x="390" y="295">79.32</text><text x="690" y="295">91.40</text>
+    <text x="75" y="365">Qwen3.5-4B</text><text x="390" y="365">160.56</text><text x="690" y="365">50.86</text>
+  </g>
+</svg>

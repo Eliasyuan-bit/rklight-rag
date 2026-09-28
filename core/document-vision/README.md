@@ -86,7 +86,10 @@ export LD_LIBRARY_PATH=/userdata/document-vision-service/lib
 ```
 
 `native_text` is always the complete PDFium page extraction and is the
-lossless text-layer fallback. PPOCRv6 always runs on the complete rendered
+lossless text-layer fallback. `native_glyphs` retains every visible native
+character's rendered-page bbox and its preceding whitespace marker, allowing
+table cells to be filled from the PDF text layer without OCR corruption.
+PPOCRv6 always runs on the complete rendered
 page and creates the line-level `blocks`; it is never gated by Layout. Each
 block has original rendered-page pixel coordinates, a semantic Layout label
 when one overlaps it, text and `text_source` (`pdfium`, `ocr`, or `none`). A

@@ -30,7 +30,15 @@ void WriteJson(std::ostream& out, const document_vision::ParsedPage& page) {
       << "\",\n  \"width\": " << page.width
       << ",\n  \"height\": " << page.height << ",\n  \"dpi\": " << page.dpi
       << ",\n  \"native_character_count\": " << page.native_character_count
-      << ",\n  \"native_text\": \"" << EscapeJson(page.native_text) << "\",\n  \"layout_regions\": [\n";
+      << ",\n  \"native_text\": \"" << EscapeJson(page.native_text) << "\",\n  \"native_glyphs\": [\n";
+  for (size_t i = 0; i < page.native_glyphs.size(); ++i) {
+    const auto& glyph = page.native_glyphs[i];
+    out << "    {\"text\": \"" << EscapeJson(glyph.text) << "\", \"space_before\": "
+        << (glyph.space_before ? "true" : "false") << ", \"box\": [" << glyph.box[0] << ", "
+        << glyph.box[1] << ", " << glyph.box[2] << ", " << glyph.box[3] << "]}"
+        << (i + 1 == page.native_glyphs.size() ? "\n" : ",\n");
+  }
+  out << "  ],\n  \"layout_regions\": [\n";
   for (size_t i = 0; i < page.layout_regions.size(); ++i) {
     const auto& b = page.layout_regions[i];
     out << "    {\"label\": \"" << EscapeJson(b.label) << "\", \"class_id\": " << b.class_id

@@ -153,6 +153,58 @@ class RkVisionIRBuilderTests(unittest.TestCase):
         )
         self.assertEqual(result.blocks[4].heading, "2.2.1 设备授权")
 
+    def test_prefers_tableformer_grid_over_flattened_table_lines(self):
+        module = load_module()
+        document = {
+            "pages": [
+                {
+                    "page": 9,
+                    "blocks": [
+                        block(0, "title", "4 Model Performance", [10, 10, 400, 40]),
+                        block(1, "table", "Model Name Accelerator TTFT", [10, 100, 400, 125]),
+                        block(2, "table", "Qwen3-4B RK1828 109.78", [10, 140, 400, 165]),
+                        block(3, "plain text", "TTFT means Time To First Token.", [10, 220, 500, 245]),
+                    ],
+                    "tables": [
+                        {
+                            "status": "ok",
+                            "reading_order": 1,
+                            "box": [5, 90, 500, 180],
+                            "rows": [
+                                ["Model Name", "Accelerator", "TTFT (ms)"],
+                                ["Qwen3-4B", "RK1828", "109.78"],
+                            ],
+                            "cells": [
+                                {
+                                    "row": 1,
+                                    "col": 0,
+                                    "text": "Qwen3-4B",
+                                    "page_box": [10, 140, 120, 165],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = module.RkVisionIRBuilder().normalize(
+            document, document_name="release-note.pdf"
+        )
+
+        self.assertEqual(len(result.blocks), 3)
+        table_block = result.blocks[1]
+        self.assertEqual(
+            table_block.tables[0].rows,
+            [
+                ["Model Name", "Accelerator", "TTFT (ms)"],
+                ["Qwen3-4B", "RK1828", "109.78"],
+            ],
+        )
+        self.assertEqual(table_block.positions[0].anchor, "9")
+        self.assertEqual(table_block.positions[0].range, [10.0, 140.0, 120.0, 165.0])
+        self.assertEqual(result.blocks[2].content_template, "TTFT means Time To First Token.")
+
     def test_keeps_list_heading_siblings_and_rejects_layout_noise(self):
         module = load_module()
         document = {

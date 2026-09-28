@@ -6,6 +6,8 @@ LightRAG 负责 WebUI、文档入库、知识图谱、检索和数据存储；RK
 
 部署步骤见 [安装文档](docs/install.md)，环境变量与配置文件说明见 [环境配置](docs/environment.md)。之前的准确性评测和逐轮修复见 [RAG 准确性回归记录](docs/rag-accuracy-validation.md)，引用阅读栏的行为与限制见 [引用预览说明](docs/reference-preview.md)。
 
+RK3588 CPU 上的 TableFormer 表格解析工具见 [TableFormer CPU 说明](docs/tableformer-cpu.md)。
+
 日常部署脚本说明见 [scripts/README.md](scripts/README.md)。
 
 ## 一、总体架构

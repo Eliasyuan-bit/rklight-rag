@@ -43,6 +43,78 @@ def _visible(block: dict[str, Any]) -> bool:
     return not (source == "ocr" and label in {"figure", "abandon"})
 
 
+def _valid_box(value: Any) -> list[float] | None:
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    if not all(isinstance(item, (int, float)) for item in value):
+        return None
+    return [float(item) for item in value]
+
+
+def _box_overlap_ratio(block_box: list[float], table_box: list[float]) -> float:
+    width = max(0.0, min(block_box[2], table_box[2]) - max(block_box[0], table_box[0]))
+    height = max(0.0, min(block_box[3], table_box[3]) - max(block_box[1], table_box[1]))
+    area = max(0.0, block_box[2] - block_box[0]) * max(0.0, block_box[3] - block_box[1])
+    return width * height / area if area > 0 else 0.0
+
+
+def _inside_table(block: dict[str, Any], table_box: list[float]) -> bool:
+    block_box = _valid_box(block.get("box"))
+    if block_box is None:
+        return False
+    center_x = (block_box[0] + block_box[2]) * 0.5
+    center_y = (block_box[1] + block_box[3]) * 0.5
+    return (
+        table_box[0] <= center_x <= table_box[2]
+        and table_box[1] <= center_y <= table_box[3]
+    ) or _box_overlap_ratio(block_box, table_box) >= 0.5
+
+
+def _inject_structured_tables(
+    blocks: list[dict[str, Any]], tables: Any
+) -> list[dict[str, Any]]:
+    """Replace flattened text boxes with successful TableFormer tables."""
+    if not isinstance(tables, list):
+        return blocks
+    structured = []
+    for table in tables:
+        if not isinstance(table, dict) or table.get("status") != "ok":
+            continue
+        box = _valid_box(table.get("box"))
+        rows = table.get("rows")
+        if box is None or not isinstance(rows, list) or not rows:
+            continue
+        structured.append((table, box))
+    if not structured:
+        return blocks
+
+    decorated: list[tuple[int, int, dict[str, Any]]] = []
+    for index, block in enumerate(blocks):
+        if any(_inside_table(block, box) for _, box in structured):
+            continue
+        decorated.append((int(block.get("reading_order", index) or 0), 1, block))
+    for table, box in structured:
+        matching_orders = [
+            int(block.get("reading_order", index) or 0)
+            for index, block in enumerate(blocks)
+            if _inside_table(block, box)
+        ]
+        order = min(matching_orders) if matching_orders else int(table.get("reading_order", 0) or 0)
+        decorated.append(
+            (
+                order,
+                0,
+                {
+                    "reading_order": order,
+                    "label": "tableformer_table",
+                    "box": box,
+                    "structured_table": table,
+                },
+            )
+        )
+    return [item[2] for item in sorted(decorated, key=lambda item: (item[0], item[1]))]
+
+
 def _table_rows(cells: list[dict[str, Any]]) -> list[list[str]]:
     """Reconstruct a simple grid from layout-labelled cell boxes.
 
@@ -163,9 +235,56 @@ class RkVisionIRBuilder:
                 (block for block in source_blocks if isinstance(block, dict)),
                 key=lambda block: int(block.get("reading_order", 0) or 0),
             )
+            ordered = _inject_structured_tables(ordered, page.get("tables"))
             index = 0
             while index < len(ordered):
                 block = ordered[index]
+                if str(block.get("label") or "").casefold() == "tableformer_table":
+                    table = block["structured_table"]
+                    rows = [
+                        [str(value) for value in row]
+                        for row in table.get("rows") or []
+                        if isinstance(row, list)
+                    ]
+                    if rows:
+                        table_sequence += 1
+                        placeholder = f"tb{table_sequence}"
+                        cell_positions = []
+                        for cell in table.get("cells") or []:
+                            if not isinstance(cell, dict):
+                                continue
+                            page_box = _valid_box(cell.get("page_box"))
+                            if page_box is not None:
+                                cell_positions.append(
+                                    IRPosition(
+                                        type="bbox",
+                                        anchor=str(page_number),
+                                        range=page_box,
+                                        origin="LEFTTOP",
+                                    )
+                                )
+                        if not cell_positions:
+                            cell_positions = [_position(page_number, block)]
+                        ir_blocks.append(
+                            IRBlock(
+                                content_template=f"{{{{TBL:{placeholder}}}}}",
+                                heading=current_heading,
+                                level=current_level,
+                                parent_headings=list(current_parents),
+                                positions=cell_positions,
+                                tables=[
+                                    IRTable(
+                                        placeholder_key=placeholder,
+                                        rows=rows,
+                                        num_rows=len(rows),
+                                        num_cols=max((len(row) for row in rows), default=0),
+                                        table_header=[rows[0]] if len(rows) > 1 else None,
+                                    )
+                                ],
+                            )
+                        )
+                    index += 1
+                    continue
                 if not _visible(block):
                     index += 1
                     continue

@@ -25,6 +25,14 @@ struct PageBlock {
   int reading_order = -1;
 };
 
+struct NativeGlyph {
+  std::string text;
+  std::array<float, 4> box{};  // Original rendered-page pixels: x0,y0,x1,y1.
+  // PDF text order contained whitespace immediately before this glyph.  The
+  // whitespace itself often has no reliable bbox, so preserve it as metadata.
+  bool space_before = false;
+};
+
 struct ParsedPage {
   int page_number = 0;  // One-based.
   // `pdfium_layout` uses native text plus Layout (without OCR) when the PDF
@@ -37,6 +45,9 @@ struct ParsedPage {
   // page level and is emitted even when layout detection misses a region.
   std::string native_text;
   int native_character_count = 0;
+  // Visible PDF text glyphs in source order.  TableFormer uses their page
+  // coordinates to fill cells without re-OCRing a native-text PDF.
+  std::vector<NativeGlyph> native_glyphs;
   // Geometry-only semantic regions from DocLayout-YOLO. Text blocks below are
   // produced independently, so a missed region cannot suppress page OCR.
   std::vector<PageBlock> layout_regions;
