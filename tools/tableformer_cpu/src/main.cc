@@ -101,11 +101,21 @@ static std::string json_escape(const std::string& s) {
     return out;
 }
 
+static std::string shell_quote(const std::string& s) {
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') out += "'\\''";
+        else out += c;
+    }
+    return out + "'";
+}
+
 static json run_ocr(const std::string& image_path, const std::string& daemon,
-                    const std::string& models, const std::string& libdir) {
-    const std::string out_file = "/tmp/tableformer_ocr_out.json";
-    std::string cmd = "LD_LIBRARY_PATH=" + libdir + " " + daemon + " --models " +
-                      models + " > " + out_file + " 2>/dev/null";
+                    const std::string& models, const std::string& libdir,
+                    const std::string& out_file) {
+    std::string cmd = "LD_LIBRARY_PATH=" + shell_quote(libdir) + " " +
+                      shell_quote(daemon) + " --models " + shell_quote(models) +
+                      " > " + shell_quote(out_file) + " 2>/dev/null";
     FILE* p = popen(cmd.c_str(), "w");
     if (!p) return json();
     std::string req = "{\"id\":\"tableformer\",\"input\":\"" +
@@ -116,6 +126,8 @@ static json run_ocr(const std::string& image_path, const std::string& daemon,
     std::ifstream f(out_file);
     std::string content((std::istreambuf_iterator<char>(f)),
                         std::istreambuf_iterator<char>());
+    f.close();
+    std::remove(out_file.c_str());
     if (content.empty()) return json();
     try {
         return json::parse(content);
@@ -532,7 +544,8 @@ int main(int argc, char** argv) {
 
         auto t5 = Clock::now();
         if (enable_ocr && !cells.empty()) {
-            json ocr = run_ocr(image_path, ocr_daemon, ocr_models, ocr_lib);
+            json ocr = run_ocr(image_path, ocr_daemon, ocr_models, ocr_lib,
+                               md_path + ".ocr.json");
             if (ocr.value("ok", false)) {
                 std::vector<OcrText> texts;
                 for (const auto& t : ocr["texts"]) {

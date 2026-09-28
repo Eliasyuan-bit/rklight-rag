@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+mkdir -p "$ROOT/runtime/tmp"
+export TMPDIR="$ROOT/runtime/tmp"
 
 PDFIUM_ROOT_EXPLICIT="${PDFIUM_ROOT:-}"
 PDFIUM_ROOT="${PDFIUM_ROOT_EXPLICIT:-$ROOT/third_party/pdfium/linux-arm64}"
@@ -25,7 +27,7 @@ command -v tar >/dev/null || { error "tar is required to unpack PDFium."; exit 1
 step "Downloading aarch64 PDFium"
 warning "Source: $PDFIUM_URL"
 
-work_dir="$(mktemp -d)"
+work_dir="$(mktemp -d "$TMPDIR/rklight-pdfium.XXXXXX")"
 cleanup() { rm -rf "$work_dir"; }
 trap cleanup EXIT
 

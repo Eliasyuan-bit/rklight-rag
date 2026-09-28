@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Shared terminal diagnostics for deployment scripts. This file is sourced.
 
+# Keep temporary files from build tools inside the project, never under /tmp.
+_RKLIGHT_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+mkdir -p "$_RKLIGHT_PROJECT_ROOT/runtime/tmp"
+export TMPDIR="$_RKLIGHT_PROJECT_ROOT/runtime/tmp"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+
 if [[ -t 2 ]]; then
   _C_RESET=$'\033[0m'
   _C_RED=$'\033[1;31m'
